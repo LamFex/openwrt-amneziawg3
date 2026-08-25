@@ -108,8 +108,8 @@ make defconfig
 JOBS="${AWG3_BUILD_JOBS:-$(nproc)}"
 make -j"$JOBS" \
 	package/feeds/awg3/amneziawg-go/compile \
-	package/feeds/awg3/amneziawg3-tools/compile \
-	package/feeds/awg3/amneziawg3-tools-aliases/compile \
+	package/feeds/awg3/amneziawg-tools/compile \
+	package/feeds/awg3/amneziawg-tools-aliases/compile \
 	package/feeds/awg3/luci-proto-amneziawg3/compile \
 	package/feeds/awg3/amneziawg3/compile
 

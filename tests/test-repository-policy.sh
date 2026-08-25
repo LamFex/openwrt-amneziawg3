@@ -85,6 +85,13 @@ tools_version="$(sed -n 's/^PKG_VERSION:=//p' amneziawg-tools/Makefile)"
 grep -Fq "AWG_GO_VERSION=${go_version}" scripts/build-sdk.sh
 grep -Fq "AWG_TOOLS_VERSION=${tools_version}" scripts/build-sdk.sh
 grep -Fq 'Feed-Signing: ${AWG3_FEED_SIGNING_STATUS}' scripts/build-sdk.sh
+grep -Fq 'package/feeds/awg3/amneziawg-tools/compile' scripts/build-sdk.sh
+grep -Fq 'package/feeds/awg3/amneziawg-tools-aliases/compile' scripts/build-sdk.sh
+if rg -n 'package/feeds/awg3/amneziawg3-tools(-aliases)?/compile' \
+		scripts/build-sdk.sh >/dev/null; then
+	echo 'An SDK target uses a binary package name instead of its feed directory.' >&2
+	exit 1
+fi
 grep -Fq 'umask 022' scripts/build-sdk.sh
 grep -Fq 'chmod 0700 "$BUILD_ROOT"' scripts/build-sdk.sh
 grep -Fq 'umask 077' scripts/build-sdk.sh
