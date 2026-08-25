@@ -85,6 +85,10 @@ tools_version="$(sed -n 's/^PKG_VERSION:=//p' amneziawg-tools/Makefile)"
 grep -Fq "AWG_GO_VERSION=${go_version}" scripts/build-sdk.sh
 grep -Fq "AWG_TOOLS_VERSION=${tools_version}" scripts/build-sdk.sh
 grep -Fq 'Feed-Signing: ${AWG3_FEED_SIGNING_STATUS}' scripts/build-sdk.sh
+grep -Fq 'umask 022' scripts/build-sdk.sh
+grep -Fq 'chmod 0700 "$BUILD_ROOT"' scripts/build-sdk.sh
+grep -Fq 'umask 077' scripts/build-sdk.sh
+grep -Fq 'chmod 0600 "$APK_PRIVATE_KEY"' scripts/build-sdk.sh
 grep -Fq 'UCODE_COMMIT=85922056ef7abeace3cca3ab28bc1ac2d88e31b1' \
 	scripts/prepare-ucode-runtime.sh
 grep -Fq 'ucode runtime is mandatory in CI' tests/test-ucode-runtime.sh

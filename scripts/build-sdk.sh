@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC3043
 set -eu
-umask 077
+umask 022
 
 # Capture and immediately remove the GitHub secret from the exported
 # environment. The replacement shell variable is not exported to SDK tools or
@@ -46,6 +46,7 @@ APK_PUBLIC_KEY=public-key.pem
 REPOSITORY_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 OUTPUT_DIR="${REPOSITORY_ROOT}/dist"
 BUILD_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/awg3-sdk.XXXXXX")"
+chmod 0700 "$BUILD_ROOT"
 trap 'case "$BUILD_ROOT" in "${TMPDIR:-/tmp}"/awg3-sdk.*) rm -rf -- "$BUILD_ROOT" ;; esac' EXIT
 
 if [ "$(uname -s)" != Linux ] || [ "$(uname -m)" != x86_64 ]; then
@@ -113,10 +114,13 @@ make -j"$JOBS" \
 	package/feeds/awg3/amneziawg3/compile
 
 if [ "$AWG3_FEED_SIGNING_STATUS" = signed-release ]; then
-	printf '%s' "$AWG3_SIGNING_KEY_B64" | base64 -d > "$APK_PRIVATE_KEY"
+	(
+		umask 077
+		printf '%s' "$AWG3_SIGNING_KEY_B64" | base64 -d > "$APK_PRIVATE_KEY"
+		chmod 0600 "$APK_PRIVATE_KEY"
+	)
 	AWG3_SIGNING_KEY_B64=
 	unset AWG3_SIGNING_KEY_B64
-	chmod 0600 "$APK_PRIVATE_KEY"
 	openssl ec -in "$APK_PRIVATE_KEY" -check -noout 2>/dev/null
 	APK_KEY_CURVE="$(openssl ec -in "$APK_PRIVATE_KEY" -param_out 2>/dev/null |
 		openssl ecparam -text -noout 2>/dev/null |
