@@ -1,0 +1,43 @@
+--- a/src/wg-quick/linux.bash
++++ b/src/wg-quick/linux.bash
+@@ -35,6 +35,6 @@ parse_options() {
+ 	local interface_section=0 line key value stripped v
+ 	CONFIG_FILE="$1"
+-	[[ $CONFIG_FILE =~ ^[a-zA-Z0-9_=+.-]{1,15}$ ]] && CONFIG_FILE="/etc/amnezia/amneziawg/$CONFIG_FILE.conf"
++	[[ $CONFIG_FILE =~ ^[a-zA-Z0-9_=+.-]{1,15}$ ]] && CONFIG_FILE="/etc/amnezia/amneziawg3/$CONFIG_FILE.conf"
+ 	[[ -e $CONFIG_FILE ]] || die "\`$CONFIG_FILE' does not exist"
+ 	[[ $CONFIG_FILE =~ (^|/)([a-zA-Z0-9_=+.-]{1,15})\.conf$ ]] || die "The config file must be a valid interface name, followed by .conf"
+ 	CONFIG_FILE="$(readlink -f "$CONFIG_FILE")"
+@@ -103,13 +103,9 @@ auto_su() {
+ }
+ 
+ add_if() {
+-	local ret
+-	if ! cmd ip link add "$INTERFACE" type amneziawg; then
+-		ret=$?
+-		[[ -e /sys/module/amneziawg ]] || ! command -v "${WG_QUICK_USERSPACE_IMPLEMENTATION:-amneziawg-go}" >/dev/null && exit $ret
+-		echo "[!] Missing WireGuard (Amnezia VPN) kernel module. Falling back to slow userspace implementation." >&2
+-		cmd "${WG_QUICK_USERSPACE_IMPLEMENTATION:-amneziawg-go}" "$INTERFACE"
+-	fi
++	local implementation="${WG_QUICK_USERSPACE_IMPLEMENTATION:-/usr/bin/amneziawg-go}"
++	[[ -x $implementation ]] || die "Userspace implementation not found: $implementation"
++	cmd "$implementation" "$INTERFACE"
+ }
+ 
+ del_if() {
+@@ -170,12 +166,8 @@ HAVE_SET_DNS=0
+ set_dns() {
+-	[[ ${#DNS[@]} -gt 0 ]] || return 0
+-	{ printf 'nameserver %s\n' "${DNS[@]}"
+-	  [[ ${#DNS_SEARCH[@]} -eq 0 ]] || printf 'search %s\n' "${DNS_SEARCH[*]}"
+-	} | cmd resolvconf -a "$(resolvconf_iface_prefix)$INTERFACE" -m 0 -x
+-	HAVE_SET_DNS=1
++	[[ ${#DNS[@]} -eq 0 && ${#DNS_SEARCH[@]} -eq 0 ]] ||
++		die "DNS= is not supported by awg-quick3 on OpenWrt; configure DNS through UCI or LuCI"
+ }
+ 
+ unset_dns() {
+-	[[ ${#DNS[@]} -gt 0 ]] || return 0
+-	cmd resolvconf -d "$(resolvconf_iface_prefix)$INTERFACE" -f
++	return 0
+ }

@@ -1,0 +1,73 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright 2018 Aleksandr V. Piskunov <aleksandr.v.piskunov@gmail.com>
+# Copyright 2015-2018 Jason A. Donenfeld <Jason@zx2c4.com>
+# Copyright 2026 AWG OpenWrt3 contributors
+# shellcheck disable=SC1091,SC3043
+
+AWG3=/usr/libexec/amneziawg3/awg
+
+[ -x "$AWG3" ] || exit 0
+
+. /lib/functions.sh
+
+check_peer_activity() {
+	local section="$1"
+	local interface="$2"
+	local disabled public_key endpoint_host endpoint_port persistent_keepalive
+	local last_handshake now idle_seconds resolved
+
+	config_get_bool disabled "$section" disabled 0
+	[ "$disabled" -eq 0 ] || return 0
+	config_get public_key "$section" public_key
+	config_get endpoint_host "$section" endpoint_host
+	config_get endpoint_port "$section" endpoint_port 51820
+	config_get persistent_keepalive "$section" persistent_keepalive
+
+	[ -n "$public_key" ] || return 0
+	[ -n "$endpoint_host" ] || return 0
+	case "$persistent_keepalive" in
+		''|0|off) return 0 ;;
+	esac
+
+	# Only DNS names need re-resolution; numeric IPv4 and IPv6 stay unchanged.
+	case "$endpoint_host" in
+		*:*) return 0 ;;
+		*[!0-9.]*) ;;
+		*) return 0 ;;
+	esac
+
+	last_handshake="$("$AWG3" show "$interface" latest-handshakes 2>/dev/null |
+		awk -v key="$public_key" '$1 == key { print $2; exit }')"
+	case "$last_handshake" in
+		''|*[!0-9]*) return 0 ;;
+	esac
+
+	now="$(date +%s)"
+	idle_seconds=$((now - last_handshake))
+	[ "$idle_seconds" -ge 150 ] || return 0
+
+	resolved="$(resolveip -t 5 "$endpoint_host" 2>/dev/null | head -n 1)"
+	[ -n "$resolved" ] || return 0
+	case "$resolved" in
+		*:*) resolved="[${resolved}]" ;;
+	esac
+
+	if "$AWG3" set "$interface" peer "$public_key" \
+		endpoint "${resolved}:${endpoint_port}" >/dev/null 2>&1; then
+		logger -t amneziawg3 \
+			"${interface}: re-resolved inactive peer endpoint ${endpoint_host}"
+	else
+		logger -t amneziawg3 \
+			"error: ${interface}: could not update peer endpoint ${endpoint_host}"
+	fi
+}
+
+AWG3_INTERFACES="$(ubus -S call network.interface dump 2>/dev/null |
+	jsonfilter -e '@.interface[@.up=true && @.proto="amneziawg3"].interface' \
+	2>/dev/null || true)"
+
+config_load network
+for interface in $AWG3_INTERFACES; do
+	config_foreach check_peer_activity "amneziawg3_${interface}" "$interface"
+done

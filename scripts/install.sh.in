@@ -1,0 +1,396 @@
+#!/bin/sh
+# shellcheck disable=SC1090,SC1091,SC3043
+set -eu
+umask 077
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+
+FEED_BASE_URL='@FEED_BASE_URL@'
+PUBLIC_KEY_SHA256='@PUBLIC_KEY_SHA256@'
+FEED_URL="${FEED_BASE_URL}/aarch64_cortex-a53/packages.adb"
+KEY_URL="${FEED_BASE_URL}/awg-openwrt3.pem"
+
+# INSTALL_ROOT and TMP_PARENT are constants so the published installer cannot
+# redirect safety checks away from the live root. Fixture tests rewrite only
+# their private copy of this template.
+INSTALL_ROOT=
+TMP_PARENT=/tmp
+OPENWRT_RELEASE="${INSTALL_ROOT}/etc/openwrt_release"
+BOARD_NAME_FILE="${INSTALL_ROOT}/tmp/sysinfo/board_name"
+MODEL_FILE="${INSTALL_ROOT}/tmp/sysinfo/model"
+KEY_PATH="${INSTALL_ROOT}/etc/apk/keys/awg-openwrt3.pem"
+FEED_FILE="${INSTALL_ROOT}/etc/apk/repositories.d/customfeeds.list"
+WORLD_FILE="${INSTALL_ROOT}/etc/apk/world"
+RUNTIME_PATH="${INSTALL_ROOT}/usr/bin/amneziawg-go"
+INIT_PATH="${INSTALL_ROOT}/etc/init.d/amneziawg3"
+INIT_TARGET=/usr/libexec/amneziawg3/amneziawg3.init
+BACKUP_PARENT="${INSTALL_ROOT}/root"
+PROJECT_PACKAGES='amneziawg3 amneziawg3-go amneziawg3-tools amneziawg3-tools-aliases luci-proto-amneziawg3'
+
+BACKUP_DIR=
+TMP_KEY=
+
+fail() {
+	echo "amneziawg3 installer: $*" >&2
+	exit 1
+}
+
+package_is_installed() {
+	apk query --installed --summarize name "$1" 2>/dev/null |
+		grep -Fxq "$1"
+}
+
+snapshot_installed_packages() {
+	local names_file="$1"
+	local versions_file="$2"
+	local package package_id version
+
+	apk query --installed --all-matches --match name --summarize name '*' \
+		2>/dev/null |
+		LC_ALL=C sort -u > "$names_file" || return 1
+	: > "$versions_file"
+	while IFS= read -r package; do
+		[ -n "$package" ] || continue
+		package_id="$(apk query --installed --all-matches --match name \
+			--summarize package "$package" 2>/dev/null | sed -n '1p')" ||
+			return 1
+		case "$package_id" in
+			"${package}"-*) version="${package_id#"${package}"-}" ;;
+			*) return 1 ;;
+		esac
+		printf '%s\t%s\n' "$package" "$version" >> "$versions_file"
+	done < "$names_file"
+}
+
+backup_file_state() {
+	local path="$1"
+	local name="$2"
+
+	if [ -f "$path" ]; then
+		touch "${BACKUP_DIR}/${name}.existed"
+		cp -p "$path" "${BACKUP_DIR}/${name}"
+	fi
+}
+
+restore_file_state() {
+	local path="$1"
+	local name="$2"
+
+	if [ -f "${BACKUP_DIR}/${name}.existed" ]; then
+		mkdir -p "$(dirname "$path")" || return 1
+		cp -p "${BACKUP_DIR}/${name}" "$path"
+	else
+		rm -f "$path"
+	fi
+}
+
+files_equal() {
+	[ -f "$1" ] && [ -f "$2" ] &&
+		[ "$(sha256sum "$1" | awk '{ print $1 }')" = \
+		"$(sha256sum "$2" | awk '{ print $1 }')" ]
+}
+
+file_state_matches() {
+	local path="$1"
+	local name="$2"
+
+	if [ -f "${BACKUP_DIR}/${name}.existed" ]; then
+		files_equal "$path" "${BACKUP_DIR}/${name}"
+	else
+		[ ! -e "$path" ] && [ ! -L "$path" ]
+	fi
+}
+
+snapshot_init_state() {
+	if [ -L "$INIT_PATH" ]; then
+		touch "${BACKUP_DIR}/init-was-link"
+		readlink "$INIT_PATH" > "${BACKUP_DIR}/init-link-target"
+	else
+		touch "${BACKUP_DIR}/init-was-absent"
+	fi
+}
+
+restore_init_state() {
+	local current_target
+
+	if [ -e "$INIT_PATH" ] || [ -L "$INIT_PATH" ]; then
+		current_target="$(readlink "$INIT_PATH" 2>/dev/null || true)"
+		[ "$current_target" = "$INIT_TARGET" ] || return 1
+		rm -f "$INIT_PATH" || return 1
+	fi
+	if [ -f "${BACKUP_DIR}/init-was-link" ]; then
+		mkdir -p "$(dirname "$INIT_PATH")" || return 1
+		ln -s "$(cat "${BACKUP_DIR}/init-link-target")" "$INIT_PATH"
+	fi
+}
+
+init_state_matches() {
+	local current_target
+
+	if [ -f "${BACKUP_DIR}/init-was-link" ]; then
+		[ -L "$INIT_PATH" ] || return 1
+		current_target="$(readlink "$INIT_PATH" 2>/dev/null || true)"
+		[ "$current_target" = "$(cat "${BACKUP_DIR}/init-link-target")" ]
+	else
+		[ ! -e "$INIT_PATH" ] && [ ! -L "$INIT_PATH" ]
+	fi
+}
+
+write_new_package_list() {
+	local output="$1"
+	local current_names="${BACKUP_DIR}/installed-names.current"
+	local current_versions="${BACKUP_DIR}/installed-versions.current"
+
+	snapshot_installed_packages "$current_names" "$current_versions" || return 1
+	awk 'NR == FNR { before[$0] = 1; next } !($0 in before)' \
+		"${BACKUP_DIR}/installed-names.before" "$current_names" > "$output"
+}
+
+remove_listed_packages() {
+	local package_file="$1"
+	local without_scripts="$2"
+	local package
+
+	set --
+	while IFS= read -r package; do
+		[ -n "$package" ] || continue
+		set -- "$@" "$package"
+	done < "$package_file"
+	[ "$#" -gt 0 ] || return 0
+
+	if [ "$without_scripts" -eq 1 ]; then
+		apk del --purge --no-scripts "$@"
+	else
+		apk del --purge "$@"
+	fi
+}
+
+install_rollback_world() {
+	local protected_world="${BACKUP_DIR}/world.rollback-protect"
+
+	{
+		if [ -f "${BACKUP_DIR}/world.existed" ]; then
+			cat "${BACKUP_DIR}/world"
+		fi
+		printf '\n'
+		cut -f1 "${BACKUP_DIR}/installed-versions.before"
+	} | LC_ALL=C sort -u > "$protected_world" || return 1
+	mkdir -p "$(dirname "$WORLD_FILE")" || return 1
+	cp "$protected_world" "$WORLD_FILE"
+}
+
+restore_changed_versions() {
+	local current_names="${BACKUP_DIR}/installed-names.for-version-restore"
+	local current_versions="${BACKUP_DIR}/installed-versions.for-version-restore"
+	local constraints="${BACKUP_DIR}/version-restore.constraints"
+	local package version current_version constraint
+	local tab
+
+	snapshot_installed_packages "$current_names" "$current_versions" || return 1
+	: > "$constraints"
+	tab="$(printf '\t')"
+	while IFS="$tab" read -r package version; do
+		[ -n "$package" ] || continue
+		current_version="$(awk -F '\t' -v name="$package" \
+			'$1 == name { print $2; exit }' "$current_versions")"
+		if [ "$current_version" != "$version" ]; then
+			printf '%s=%s\n' "$package" "$version" >> "$constraints"
+		fi
+	done < "${BACKUP_DIR}/installed-versions.before"
+
+	set --
+	while IFS= read -r constraint; do
+		[ -n "$constraint" ] || continue
+		set -- "$@" "$constraint"
+	done < "$constraints"
+	[ "$#" -gt 0 ] || return 0
+	echo "Rollback: restoring pre-install package versions: $*" >&2
+	apk add "$@"
+}
+
+record_project_packages() {
+	local package version
+	local tab
+
+	: > "${BACKUP_DIR}/project-packages.before"
+	tab="$(printf '\t')"
+	while IFS="$tab" read -r package version; do
+		case " ${PROJECT_PACKAGES} " in
+			*" ${package} "*)
+				printf '%s\t%s\n' "$package" "$version" >> \
+					"${BACKUP_DIR}/project-packages.before"
+				;;
+		esac
+	done < "${BACKUP_DIR}/installed-versions.before"
+}
+
+on_failure() {
+	rc=$?
+	trap - EXIT HUP INT TERM
+	set +e
+	[ "$rc" -ne 0 ] || rc=1
+	rollback_complete=1
+
+	[ -z "$TMP_KEY" ] || rm -f "$TMP_KEY"
+
+	if install_rollback_world; then
+		if write_new_package_list "${BACKUP_DIR}/new-packages.after-failure"; then
+			if [ -s "${BACKUP_DIR}/new-packages.after-failure" ]; then
+				echo "Rollback: removing packages introduced by this attempt:" >&2
+				sed 's/^/  - /' "${BACKUP_DIR}/new-packages.after-failure" >&2
+				remove_listed_packages \
+					"${BACKUP_DIR}/new-packages.after-failure" 0 || true
+			fi
+			if write_new_package_list "${BACKUP_DIR}/new-packages.remaining" &&
+				[ -s "${BACKUP_DIR}/new-packages.remaining" ]; then
+				echo "Rollback: retrying remaining broken-script packages without package scripts." >&2
+				remove_listed_packages \
+					"${BACKUP_DIR}/new-packages.remaining" 1 || true
+			fi
+		else
+			echo "Rollback: could not enumerate the post-failure package set." >&2
+			rollback_complete=0
+		fi
+	else
+		echo "Rollback: could not install the temporary world protection set; package removal was skipped." >&2
+		rollback_complete=0
+	fi
+
+	restore_file_state "$WORLD_FILE" world || rollback_complete=0
+	restore_changed_versions || rollback_complete=0
+	restore_file_state "$WORLD_FILE" world || rollback_complete=0
+	restore_init_state || rollback_complete=0
+	restore_file_state "$KEY_PATH" awg-openwrt3.pem || rollback_complete=0
+	restore_file_state "$FEED_FILE" customfeeds.list || rollback_complete=0
+
+	if snapshot_installed_packages \
+		"${BACKUP_DIR}/installed-names.final" \
+		"${BACKUP_DIR}/installed-versions.final"; then
+		files_equal "${BACKUP_DIR}/installed-names.before" \
+			"${BACKUP_DIR}/installed-names.final" || rollback_complete=0
+		files_equal "${BACKUP_DIR}/installed-versions.before" \
+			"${BACKUP_DIR}/installed-versions.final" || rollback_complete=0
+	else
+		rollback_complete=0
+	fi
+	file_state_matches "$WORLD_FILE" world || rollback_complete=0
+	file_state_matches "$KEY_PATH" awg-openwrt3.pem || rollback_complete=0
+	file_state_matches "$FEED_FILE" customfeeds.list || rollback_complete=0
+	init_state_matches || rollback_complete=0
+
+	echo "Installation failed with exit code ${rc}. No network interface was created or activated." >&2
+	if [ "$rollback_complete" -eq 1 ]; then
+		echo "Rollback complete: packages, versions, world, feed, key, and init facade match the pre-install snapshots." >&2
+	else
+		echo "ROLLBACK INCOMPLETE: do not change the network; inspect ${BACKUP_DIR} and the messages above." >&2
+	fi
+	exit "$rc"
+}
+
+on_signal() {
+	exit 130
+}
+
+[ -r "$OPENWRT_RELEASE" ] || fail "OpenWrt release metadata not found"
+. "$OPENWRT_RELEASE"
+
+[ "${DISTRIB_RELEASE:-}" = "25.12.5" ] ||
+	fail "only OpenWrt 25.12.5 is accepted by this first release"
+[ "${DISTRIB_TARGET:-}" = "mediatek/filogic" ] ||
+	fail "only the mediatek/filogic target is supported"
+[ "${DISTRIB_ARCH:-}" = "aarch64_cortex-a53" ] ||
+	fail "only aarch64_cortex-a53 is supported"
+
+KERNEL_RELEASE="$(uname -r)"
+case "$KERNEL_RELEASE" in
+	6.12.*) ;;
+	*) fail "expected the OpenWrt 25.12 kernel 6.12.x; detected: ${KERNEL_RELEASE}" ;;
+esac
+
+BOARD_NAME="$(cat "$BOARD_NAME_FILE" 2>/dev/null || true)"
+MODEL="$(cat "$MODEL_FILE" 2>/dev/null || true)"
+[ "$BOARD_NAME" = "cudy,tr3000-v1" ] ||
+	fail "unsupported board_name '${BOARD_NAME:-unknown}' (model: ${MODEL:-unknown}); expected exactly cudy,tr3000-v1"
+echo "Accepted board_name: ${BOARD_NAME} (model: ${MODEL:-unknown})"
+
+if package_is_installed amneziawg-go; then
+	fail "legacy amneziawg-go is installed; refusing to replace or remove an AWG2 runtime"
+fi
+if [ -e "$RUNTIME_PATH" ] || [ -L "$RUNTIME_PATH" ]; then
+	runtime_owner="$(apk query --installed --all-matches --match owner \
+		--summarize name /usr/bin/amneziawg-go 2>/dev/null |
+		sed -n '1p')"
+	[ "$runtime_owner" = amneziawg3-go ] ||
+		fail "existing /usr/bin/amneziawg-go is not owned by amneziawg3-go: ${runtime_owner:-unowned}"
+fi
+if [ -e "$INIT_PATH" ] || [ -L "$INIT_PATH" ]; then
+	current_init_target="$(readlink "$INIT_PATH" 2>/dev/null || true)"
+	[ "$current_init_target" = "$INIT_TARGET" ] ||
+		fail "existing /etc/init.d/amneziawg3 is not the package facade; refusing to replace it"
+fi
+
+if [ "${AWG3_INSTALL_CONFIRM:-}" != "YES" ]; then
+	echo "This will add one APK feed key, add one feed URL, and install amneziawg3."
+	echo "It will not create an interface or change routes, firewall rules, WireGuard, or AWG2."
+	printf '%s' "Type INSTALL to continue: "
+	read -r answer
+	[ "$answer" = "INSTALL" ] || fail "confirmation was not received"
+fi
+
+timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+mkdir -p "$BACKUP_PARENT"
+BACKUP_DIR="$(mktemp -d "${BACKUP_PARENT}/awg3-install-backup-${timestamp}.XXXXXX")" ||
+	fail "could not create a private rollback directory"
+chmod 0700 "$BACKUP_DIR"
+
+backup_file_state "$KEY_PATH" awg-openwrt3.pem
+backup_file_state "$FEED_FILE" customfeeds.list
+backup_file_state "$WORLD_FILE" world
+snapshot_init_state
+snapshot_installed_packages \
+	"${BACKUP_DIR}/installed-names.before" \
+	"${BACKUP_DIR}/installed-versions.before" ||
+	fail "could not snapshot installed package names and versions"
+record_project_packages
+
+if [ -s "${BACKUP_DIR}/project-packages.before" ]; then
+	echo "Already installed project packages:" >&2
+	sed 's/^/  /' "${BACKUP_DIR}/project-packages.before" >&2
+	fail "this installer is first-install only; use a controlled apk upgrade for an existing package set (snapshot: ${BACKUP_DIR})"
+fi
+
+trap on_failure EXIT
+trap on_signal HUP INT TERM
+
+TMP_KEY="$(mktemp "${TMP_PARENT}/awg-openwrt3.pem.XXXXXX")" ||
+	fail "could not create a private temporary key file"
+wget -qO "$TMP_KEY" "$KEY_URL"
+actual_key_hash="$(sha256sum "$TMP_KEY" | awk '{ print $1 }')"
+[ "$actual_key_hash" = "$PUBLIC_KEY_SHA256" ] ||
+	fail "feed public key checksum mismatch"
+
+mkdir -p "$(dirname "$KEY_PATH")" "$(dirname "$FEED_FILE")"
+cp "$TMP_KEY" "$KEY_PATH"
+chmod 0644 "$KEY_PATH"
+rm -f "$TMP_KEY"
+TMP_KEY=
+touch "$FEED_FILE"
+grep -Fxq "$FEED_URL" "$FEED_FILE" || printf '%s\n' "$FEED_URL" >> "$FEED_FILE"
+
+apk update
+set -- amneziawg3
+if [ -e "${INSTALL_ROOT}/usr/bin/awg" ] ||
+	[ -L "${INSTALL_ROOT}/usr/bin/awg" ] ||
+	[ -e "${INSTALL_ROOT}/usr/bin/awg-quick" ] ||
+	[ -L "${INSTALL_ROOT}/usr/bin/awg-quick" ] ||
+	package_is_installed amneziawg-tools; then
+	echo "Existing AWG tools detected; standard awg aliases will not be installed."
+else
+	set -- "$@" amneziawg3-tools-aliases
+fi
+apk add "$@"
+
+trap - EXIT HUP INT TERM
+echo "AmneziaWG 3.1 package-only installation is complete."
+echo "No interface was created or started. Backup: ${BACKUP_DIR}"
+echo "The running netifd process has not discovered the new protocol handler."
+echo "Do not run ifup yet. A controlled /etc/init.d/network restart or reboot is a separate network-mutation gate."

@@ -1,0 +1,4 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+
+exec /usr/libexec/amneziawg3/awg "$@"

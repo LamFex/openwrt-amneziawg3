@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2016
+set -euo pipefail
+
+REPOSITORY_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
+cd "$REPOSITORY_ROOT"
+
+package_makefiles=(
+	amneziawg-go/Makefile
+	amneziawg-tools/Makefile
+	amneziawg-tools-aliases/Makefile
+	amneziawg3/Makefile
+	luci-proto-amneziawg3/Makefile
+)
+
+for makefile in "${package_makefiles[@]}"; do
+	release="$(sed -n 's/^PKG_RELEASE:=//p' "$makefile")"
+	[[ "$release" == 2 ]] || {
+		echo "$makefile has incoherent PKG_RELEASE=$release" >&2
+		exit 1
+	}
+done
+
+if rg -n '^PKG_CPE_ID:=' "${package_makefiles[@]}" >/dev/null; then
+	echo 'An unverified CPE identifier is present.' >&2
+	exit 1
+fi
+grep -Fxq 'LUCI_MAINTAINER:=AWG OpenWrt3 contributors' \
+	luci-proto-amneziawg3/Makefile
+grep -Fq 'пока намеренно указывают коллективное имя' CONTRIBUTING.md
+grep -Fq 'Name <email>' CONTRIBUTING.md
+grep -Fq '**UNOFFICIAL / НЕОФИЦИАЛЬНЫЙ ПРОЕКТ.**' README.md
+if rg -n '217\.144\.185\.82|217\.144\.185\.' \
+		--glob '!.git/**' . >/dev/null; then
+	echo 'A production endpoint remains in repository sources.' >&2
+	exit 1
+fi
+
+grep -Fq 'DEPENDS:=@TARGET_mediatek_filogic $(GO_ARCH_DEPENDS) +kmod-tun' \
+	amneziawg-go/Makefile
+grep -Fq 'CONFLICTS:=amneziawg-go' amneziawg-go/Makefile
+grep -Fq 'DEPENDS:=+amneziawg3-go +bash +ip-full +netifd +nftables-json +resolveip' \
+	amneziawg-tools/Makefile
+grep -Fq 'CONFLICTS:=amneziawg-tools' amneziawg-tools-aliases/Makefile
+if grep -Fq 'amneziawg3-tools-aliases' amneziawg3/Makefile; then
+	echo 'Default meta-package unexpectedly depends on optional aliases.' >&2
+	exit 1
+fi
+grep -Fq 'amneziawg3-key-helper' amneziawg-tools/Makefile
+grep -Fq 'define Package/amneziawg3-tools/prerm' amneziawg-tools/Makefile
+
+grep -Fq 'board_name=cudy,tr3000-v1' README.md
+grep -Fq '[ "$BOARD_NAME" = "cudy,tr3000-v1" ]' scripts/install.sh.in
+grep -Fq "option auto '0'" README.md docs/router-validation.md
+grep -Fq 'Gate 2b — netifd protocol discovery' docs/router-validation.md
+grep -Fq 'ubus call network reload' docs/architecture.md docs/troubleshooting.md
+grep -Fq 'не выполняют restart сами' docs/router-validation.md
+grep -Fq 'ifdown <interface>`/`ifup <interface>' docs/architecture.md
+grep -Fq 'Для текущего `-r2`' README.md
+
+if rg -n '^[[:space:]]*(/etc/init.d/network|ifup|reboot)([[:space:]]|$)' \
+		amneziawg-go/Makefile amneziawg-tools/Makefile \
+		luci-proto-amneziawg3/Makefile scripts/install.sh.in >/dev/null; then
+	echo 'A package or installer hook performs an automatic network mutation.' >&2
+	exit 1
+fi
+
+grep -Fq 'Jc × Jmax <= 163840' docs/junk-parameter-safety.md
+grep -Fq 'проверяет их до запуска `amneziawg-go`' docs/junk-parameter-safety.md
+grep -Fq 'Jc <= 128' docs/security-model.md
+grep -Fq 'поступает в `awg3 pubkey` только через stdin' docs/architecture.md
+
+acl=luci-proto-amneziawg3/root/usr/share/rpcd/acl.d/luci-amneziawg3.json
+ucode=luci-proto-amneziawg3/root/usr/share/rpcd/ucode/luci.amneziawg3
+js=luci-proto-amneziawg3/htdocs/luci-static/resources/protocol/amneziawg3.js
+for method in generateKeyPair deriveStoredPublicKey generatePresharedKey; do
+	grep -Fq "$method" "$acl"
+	grep -Fq "$method" "$ucode"
+	grep -Fq "$method" "$js"
+done
+
+go_version="$(sed -n 's/^PKG_VERSION:=//p' amneziawg-go/Makefile)"
+tools_version="$(sed -n 's/^PKG_VERSION:=//p' amneziawg-tools/Makefile)"
+[[ "$go_version" == 3.1.* && "$tools_version" == 3.1.* ]]
+grep -Fq "AWG_GO_VERSION=${go_version}" scripts/build-sdk.sh
+grep -Fq "AWG_TOOLS_VERSION=${tools_version}" scripts/build-sdk.sh
+grep -Fq 'Feed-Signing: ${AWG3_FEED_SIGNING_STATUS}' scripts/build-sdk.sh
+grep -Fq 'UCODE_COMMIT=85922056ef7abeace3cca3ab28bc1ac2d88e31b1' \
+	scripts/prepare-ucode-runtime.sh
+grep -Fq 'ucode runtime is mandatory in CI' tests/test-ucode-runtime.sh
+grep -Fq 'APK metadata, files, index, and solver checks passed.' \
+	scripts/verify-apk-feed.sh
+grep -Fq 'scripts/verify-apk-feed.sh' scripts/lint.sh
+
+echo 'Repository policy tests passed.'

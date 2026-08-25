@@ -1,0 +1,56 @@
+# OpenWrt build products
+*.apk
+*.ipk
+*.manifest
+*.tar
+*.tar.gz
+*.tar.zst
+bin/
+build_dir/
+dl/
+dist/
+feeds/
+key-build*
+logs/
+packages/
+public/
+staging_dir/
+tmp/
+
+# Local editor and operating-system files
+.DS_Store
+*~
+*.bak
+*.backup
+*.orig
+*.rej
+*.swp
+*.swo
+.cache/
+.direnv/
+.fleet/
+.history/
+.idea/
+.project
+.settings/
+.vscode/
+
+# Secrets and local profiles
+*.conf
+*.awg
+*.key
+*.mobileconfig
+*.pem
+*.profile
+*.secret
+*.uci
+*.vpn
+.env
+.env.*
+
+# Local audit and rollback material
+*.log
+backups/
+local-backups/
+
+!tests/fixtures/*.conf

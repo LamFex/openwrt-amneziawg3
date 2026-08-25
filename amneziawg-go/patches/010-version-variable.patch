@@ -1,0 +1,7 @@
+--- a/version.go
++++ b/version.go
+@@ -1,3 +1,3 @@
+ package main
+ 
+-const Version = "0.0.20250522"
++var Version = "0.0.20250522"

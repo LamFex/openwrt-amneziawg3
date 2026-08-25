@@ -1,0 +1,53 @@
+name: Сообщение об ошибке
+description: Воспроизводимая ошибка на поддерживаемой платформе первого релиза
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Не публикуйте private keys, полные client profiles, signing keys, backup роутера или credentials.
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Поддерживаемая платформа
+      options:
+        - label: Ошибка воспроизведена на OpenWrt 25.12.5, aarch64_cortex-a53, Cudy TR3000 v1.
+          required: true
+        - label: Я проверил, что сообщение не содержит secrets или credentials.
+          required: true
+
+  - type: input
+    id: versions
+    attributes:
+      label: Версии пакетов
+      description: Вывод apk info только для AWG3-пакетов.
+      placeholder: amneziawg3-go-3.1.20260814-r2, amneziawg3-tools-3.1.20260812-r2
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Ошибка и воспроизведение
+      description: Опишите ожидаемый и фактический результат, затем минимальное безопасное воспроизведение.
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Диагностика без секретов
+      description: Приложите только релевантный redacted-вывод ubus status и logread.
+      render: shell
+
+  - type: dropdown
+    id: routes
+    attributes:
+      label: Режим маршрутизации при воспроизведении
+      options:
+        - route_allowed_ips выключен
+        - Split route
+        - Контролируемый full tunnel
+    validations:
+      required: true

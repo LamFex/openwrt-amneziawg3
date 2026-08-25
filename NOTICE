@@ -1,0 +1,22 @@
+AWG OpenWrt3
+Copyright 2026 AWG OpenWrt3 contributors
+
+This product includes and adapts OpenWrt WireGuard netifd and LuCI integration
+code licensed under the Apache License, Version 2.0.
+
+Copyright 2016-2017 Dan Luedtke <mail@danrl.com>
+Copyright 2022 Jo-Philipp Wich <jo@mein.io>
+Copyright OpenWrt and LuCI contributors
+
+The AmneziaWG watchdog adapts the OpenWrt WireGuard watchdog under
+GPL-2.0-only and retains the copyrights of Aleksandr V. Piskunov and
+Jason A. Donenfeld in the source file.
+
+This project builds and patches amneziawg-tools, which is licensed under
+GPL-2.0-only, and builds amneziawg-go, which is licensed under the MIT License.
+The upstream source archives retain their original copyright notices and
+license files.
+
+Structural research also referenced Slava-Shchipunov/awg-openwrt. No source
+file from that repository is redistributed verbatim without retaining its
+applicable upstream license.

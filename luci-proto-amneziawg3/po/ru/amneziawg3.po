@@ -1,0 +1,213 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: luci-proto-amneziawg3\n"
+"PO-Revision-Date: 2026-08-24 00:00+0300\n"
+"Last-Translator: AWG OpenWrt3 contributors\n"
+"Language-Team: Russian\n"
+"Language: ru\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : "
+"n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+msgid "AWG 3.1 parameters"
+msgstr "Параметры AWG 3.1"
+
+msgid "Add peer"
+msgstr "Добавить узел"
+
+msgid "Allowed IPs"
+msgstr "Разрешённые IP-адреса"
+
+msgid "AmneziaWG 3.1"
+msgstr "AmneziaWG 3.1"
+
+msgid "Content padding addition"
+msgstr "Дополнительное заполнение данных"
+
+msgid "Copy these values exactly from the matching AmneziaWG 3.1 client profile. Jc is limited to 128, Jmax to 1280, and Jmin must be smaller than Jmax."
+msgstr "Скопируйте эти значения без изменений из соответствующего клиентского профиля AmneziaWG 3.1. Jc ограничен значением 128, Jmax — 1280, а Jmin должен быть меньше Jmax."
+
+msgid "Derived from the last saved private key and safe to share with the server administrator."
+msgstr "Вычисляется из последнего сохранённого закрытого ключа; его можно передать администратору сервера."
+
+msgid "Description"
+msgstr "Описание"
+
+msgid "Disable cookies"
+msgstr "Отключить cookies"
+
+msgid "Disabled"
+msgstr "Отключён"
+
+msgid "Disabled by default to prevent an imported profile from replacing the current internet route."
+msgstr "По умолчанию выключено, чтобы новый профиль не заменил текущий маршрут в интернет."
+
+msgid "Do not create endpoint host routes"
+msgstr "Не создавать host route до endpoint"
+
+msgid "Each peer must use parameters compatible with this AWG 3.1 interface."
+msgstr "Каждый узел должен использовать параметры, совместимые с этим интерфейсом AWG 3.1."
+
+msgid "Edit AmneziaWG 3.1 peer"
+msgstr "Изменить узел AmneziaWG 3.1"
+
+msgid "Enable only when endpoint reachability is managed by another route."
+msgstr "Включайте только если доступность endpoint обеспечивается другим маршрутом."
+
+msgid "Endpoint host"
+msgstr "Хост endpoint"
+
+msgid "Endpoint port"
+msgstr "Порт endpoint"
+
+msgid "Firewall mark"
+msgstr "Метка firewall"
+
+msgid "Generate key pair"
+msgstr "Создать пару ключей"
+
+msgid "Generate preshared key"
+msgstr "Создать предварительный ключ"
+
+msgid "Header protection key"
+msgstr "Ключ защиты заголовка"
+
+msgid "IP addresses"
+msgstr "IP-адреса"
+
+msgid "IPv6 routed prefix"
+msgstr "Маршрутизируемый префикс IPv6"
+
+msgid "Invalid Base64 key"
+msgstr "Некорректный ключ Base64"
+
+msgid "Invalid hexadecimal firewall mark"
+msgstr "Некорректная шестнадцатеричная метка firewall"
+
+msgid "Junk packet count"
+msgstr "Количество мусорных пакетов"
+
+msgid "Jc, Jmin, and Jmax must be either all present or all absent"
+msgstr "Jc, Jmin и Jmax должны быть либо заданы все вместе, либо все отсутствовать"
+
+msgid "Jc must be between 1 and 128"
+msgstr "Jc должен быть в диапазоне от 1 до 128"
+
+msgid "Jc multiplied by Jmax exceeds the 163840-byte allocation budget"
+msgstr "Произведение Jc и Jmax превышает лимит выделения памяти 163840 байт"
+
+msgid "Jmax must be between 1 and 1280"
+msgstr "Jmax должен быть в диапазоне от 1 до 1280"
+
+msgid "Jmin must be strictly less than Jmax"
+msgstr "Jmin должен быть строго меньше Jmax"
+
+msgid "Keepalive timeout"
+msgstr "Тайм-аут keepalive"
+
+msgid "Key generation failed"
+msgstr "Не удалось создать ключи"
+
+msgid "Listen port"
+msgstr "Локальный порт"
+
+msgid "MTU"
+msgstr "MTU"
+
+msgid "Maximum handshake attempts"
+msgstr "Максимум попыток handshake"
+
+msgid "Maximum junk packet size"
+msgstr "Максимальный размер мусорного пакета"
+
+msgid "Maximum transmission unit of the tunnel interface."
+msgstr "Максимальный размер передаваемого блока tunnel interface."
+
+msgid "Minimum junk packet size"
+msgstr "Минимальный размер мусорного пакета"
+
+msgid "One or more addresses assigned to the tunnel interface."
+msgstr "Один или несколько адресов tunnel interface."
+
+msgid "Optional 32-bit hexadecimal mark, for example 0xca6c."
+msgstr "Необязательная 32-битная шестнадцатеричная метка, например 0xca6c."
+
+msgid "Optional local UDP port. Leave empty to choose one automatically."
+msgstr "Необязательный локальный UDP-порт. Оставьте пустым для автоматического выбора."
+
+msgid "Peers"
+msgstr "Узлы"
+
+msgid "Persistent keepalive"
+msgstr "Постоянный keepalive"
+
+msgid "Preshared key generation failed"
+msgstr "Не удалось создать предварительный ключ"
+
+msgid "Preshared key"
+msgstr "Предварительный ключ"
+
+msgid "Private key"
+msgstr "Закрытый ключ"
+
+msgid "Public key"
+msgstr "Открытый ключ"
+
+msgid "Random trailers"
+msgstr "Случайные хвостовые данные"
+
+#, c-format
+msgid "Range must be between 0 and %d"
+msgstr "Диапазон должен быть от 0 до %d"
+
+msgid "Reject after time"
+msgstr "Отклонять после"
+
+msgid "Rekey after time"
+msgstr "Обновлять ключ после"
+
+msgid "Rekey timeout"
+msgstr "Тайм-аут обновления ключа"
+
+msgid "Required. The key remains in UCI and is never written to a temporary profile."
+msgstr "Обязательно. Ключ остаётся в UCI и не записывается во временный профиль."
+
+msgid "Route allowed IPs"
+msgstr "Создавать маршруты для разрешённых IP"
+
+msgid "S1 through S4 must each be at least 12 when header protection is enabled"
+msgstr "При защите заголовка каждое значение S1–S4 должно быть не меньше 12"
+
+msgid "Seconds, or an inclusive range for AWG 3.1."
+msgstr "Секунды или включительный диапазон AWG 3.1."
+
+msgid "Use a number or an inclusive range such as 30-45"
+msgstr "Укажите число или включительный диапазон, например 30-45"
+
+msgid "Use one value or an inclusive range."
+msgstr "Укажите одно значение или включительный диапазон."
+
+#, c-format
+msgid "%s exceeds the supported maximum of %d"
+msgstr "%s превышает поддерживаемый максимум %d"
+
+#, c-format
+msgid "%s must be a canonical decimal integer"
+msgstr "%s должен быть целым десятичным числом в канонической записи"
+
+msgid "When set, S1 through S4 must each be at least 12."
+msgstr "Если ключ задан, каждое значение S1–S4 должно быть не меньше 12."
+
+msgid "automatic"
+msgstr "автоматически"
+
+msgid "message header"
+msgstr "заголовок сообщения"
+
+msgid "packet padding"
+msgstr "заполнение пакета"
+
+msgid "special handshake value"
+msgstr "специальное значение handshake"

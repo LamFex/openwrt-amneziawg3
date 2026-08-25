@@ -1,0 +1,5 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+
+export WG_QUICK_USERSPACE_IMPLEMENTATION=/usr/bin/amneziawg-go
+exec /usr/libexec/amneziawg3/awg-quick "$@"

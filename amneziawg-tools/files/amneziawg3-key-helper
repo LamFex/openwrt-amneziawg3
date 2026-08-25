@@ -1,0 +1,75 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# shellcheck disable=SC3043
+set -eu
+
+AWG3="${AWG3:-/usr/libexec/amneziawg3/awg}"
+UCI="${UCI:-/sbin/uci}"
+OUTPUT_FD=
+
+if [ "${1:-}" = "--output-fd" ]; then
+	[ "$#" -ge 3 ] || exit 2
+	output_fd_candidate="$2"
+	case "$output_fd_candidate" in
+		''|*[!0-9]*) exit 2 ;;
+	esac
+	[ "${#output_fd_candidate}" -le 5 ] || exit 2
+	[ "$output_fd_candidate" -ge 3 ] &&
+		[ "$output_fd_candidate" -le 65535 ] || exit 2
+	OUTPUT_FD="$output_fd_candidate"
+	shift 2
+fi
+
+emit_one_line() {
+	if [ -n "$OUTPUT_FD" ]; then
+		printf '%s\n' "$1" >&"$OUTPUT_FD"
+	else
+		printf '%s\n' "$1"
+	fi
+}
+
+emit_two_lines() {
+	if [ -n "$OUTPUT_FD" ]; then
+		printf '%s\n%s\n' "$1" "$2" >&"$OUTPUT_FD"
+	else
+		printf '%s\n%s\n' "$1" "$2"
+	fi
+}
+
+valid_section_name() {
+	case "$1" in
+		''|*[!A-Za-z0-9_=+.-]*|????????????????*) return 1 ;;
+	esac
+}
+
+derive_public_key() {
+	local private_key="$1"
+
+	[ "${#private_key}" -eq 44 ] || return 1
+	printf '%s\n' "$private_key" | "$AWG3" pubkey 2>/dev/null
+}
+
+case "${1:-}" in
+	generate-key-pair)
+		[ "$#" -eq 1 ] || exit 2
+		private_key="$("$AWG3" genkey 2>/dev/null)" || exit 1
+		public_key="$(derive_public_key "$private_key")" || exit 1
+		emit_two_lines "$private_key" "$public_key"
+		;;
+	generate-preshared-key)
+		[ "$#" -eq 1 ] || exit 2
+		preshared_key="$("$AWG3" genpsk 2>/dev/null)" || exit 1
+		emit_one_line "$preshared_key"
+		;;
+	derive-stored-public-key)
+		[ "$#" -eq 2 ] || exit 2
+		valid_section_name "$2" || exit 2
+		private_key="$("$UCI" -q get "network.${2}.private_key" 2>/dev/null)" ||
+			exit 1
+		public_key="$(derive_public_key "$private_key")" || exit 1
+		emit_one_line "$public_key"
+		;;
+	*)
+		exit 2
+		;;
+esac

@@ -1,0 +1,101 @@
+#!/bin/sh /etc/rc.common
+# SPDX-License-Identifier: MIT
+# shellcheck disable=SC1091,SC2034,SC3043
+
+START=99
+STOP=01
+
+EXTRA_COMMANDS="status"
+EXTRA_HELP="	status	Show AmneziaWG 3.1 interface status"
+
+. /lib/functions.sh
+
+AWG3_INTERFACES=
+
+collect_amneziawg3_interface() {
+	local section="$1"
+	local proto
+
+	config_get proto "$section" proto
+	[ "$proto" = "amneziawg3" ] || return 0
+	append AWG3_INTERFACES "$section"
+}
+
+load_amneziawg3_interfaces() {
+	AWG3_INTERFACES=
+	config_load network
+	config_foreach collect_amneziawg3_interface interface
+}
+
+interface_is_up() {
+	local interface="$1"
+	local state
+
+	state="$(ubus call "network.interface.${interface}" status 2>/dev/null |
+		jsonfilter -e '@.up' 2>/dev/null)"
+	[ "$state" = "true" ]
+}
+
+interface_is_automatic() {
+	local interface="$1"
+	local automatic
+
+	config_get_bool automatic "$interface" auto 1
+	[ "$automatic" -ne 0 ]
+}
+
+start() {
+	local interface
+	local rc=0
+
+	load_amneziawg3_interfaces
+	for interface in $AWG3_INTERFACES; do
+		if ! interface_is_automatic "$interface"; then
+			echo "${interface}: skipped (option auto is 0)"
+			continue
+		fi
+		interface_is_up "$interface" || ifup "$interface" || rc=1
+	done
+	return "$rc"
+}
+
+stop() {
+	local interface
+	local rc=0
+
+	load_amneziawg3_interfaces
+	for interface in $AWG3_INTERFACES; do
+		ifdown "$interface" || rc=1
+	done
+	return "$rc"
+}
+
+restart() {
+	stop || return 1
+	start
+}
+
+status() {
+	local interface
+	local output up
+	local rc=0
+
+	load_amneziawg3_interfaces
+	if [ -z "$AWG3_INTERFACES" ]; then
+		echo "No amneziawg3 interfaces are configured."
+		return 0
+	fi
+
+	for interface in $AWG3_INTERFACES; do
+		echo "${interface}:"
+		if ! output="$(ubus call "network.interface.${interface}" status)"; then
+			echo "status unavailable"
+			rc=1
+			continue
+		fi
+		printf '%s\n' "$output"
+		up="$(printf '%s\n' "$output" | jsonfilter -e '@.up' 2>/dev/null)"
+		[ "$up" = "true" ] || rc=1
+	done
+	return "$rc"
+}

@@ -1,0 +1,72 @@
+// Copyright 2026 AWG OpenWrt3 contributors
+// Licensed under the Apache License 2.0.
+
+'use strict';
+
+import { pipe } from 'fs';
+
+const KEY_HELPER = '/usr/libexec/amneziawg3/amneziawg3-key-helper';
+
+function command(commandArgs) {
+	const handles = pipe();
+
+	if (!handles || length(handles) != 2)
+		return '';
+
+	const input = handles[0];
+	const output = handles[1];
+	const outputFd = output.fileno();
+
+	if (outputFd == null) {
+		input.close();
+		output.close();
+		return '';
+	}
+
+	const argv = [ KEY_HELPER, '--output-fd', `${outputFd}` ];
+
+	for (let i = 0; i < length(commandArgs); i++)
+		push(argv, commandArgs[i]);
+
+	const status = system(argv);
+
+	output.close();
+	const result = input.read('all');
+	input.close();
+
+	return (status == 0 && result != null) ? trim(result) : '';
+}
+
+const methods = {
+	generatePresharedKey: {
+		call: function() {
+			return { key: command([ 'generate-preshared-key' ]) };
+		}
+	},
+
+	generateKeyPair: {
+		call: function() {
+			const output = command([ 'generate-key-pair' ]);
+			const pair = split(output, '\n');
+			const priv = pair[0] ?? '';
+			const pub = pair[1] ?? '';
+
+			return { keys: { priv, pub } };
+		}
+	},
+
+	deriveStoredPublicKey: {
+		args: { section: 'section' },
+		call: function(request) {
+			const section = request.args?.section;
+			if (!match(section ?? '', /^[A-Za-z0-9_=+.-]{1,15}$/))
+				return { keys: { pub: '' } };
+
+			const pub = command([ 'derive-stored-public-key', section ]);
+
+			return { keys: { pub } };
+		}
+	}
+};
+
+return { 'luci.amneziawg3': methods };

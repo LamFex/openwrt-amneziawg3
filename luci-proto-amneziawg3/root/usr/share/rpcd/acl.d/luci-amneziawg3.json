@@ -1,0 +1,14 @@
+{
+	"luci-proto-amneziawg3": {
+		"description": "Grant access to AmneziaWG 3.1 key procedures",
+		"write": {
+			"ubus": {
+				"luci.amneziawg3": [
+					"generateKeyPair",
+					"deriveStoredPublicKey",
+					"generatePresharedKey"
+				]
+			}
+		}
+	}
+}

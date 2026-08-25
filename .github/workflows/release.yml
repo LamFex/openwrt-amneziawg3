@@ -1,0 +1,141 @@
+name: Release signed APK feed
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    permissions:
+      contents: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]]
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
+      - name: Install OpenWrt SDK prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            build-essential clang cmake flex bison gawk gettext libjson-c-dev \
+            libncurses-dev file git jq libssl-dev openssl patch pkg-config \
+            python3-setuptools ripgrep rsync shellcheck swig unzip zlib1g-dev zstd
+
+      - name: Install pinned security and ucode test tools
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          GOBIN="$RUNNER_TEMP/bin" \
+            go install github.com/zricethezav/gitleaks/v8@v8.30.1
+          ./scripts/prepare-ucode-runtime.sh "$RUNNER_TEMP/ucode-exact"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          echo "$RUNNER_TEMP/ucode-exact/bin" >> "$GITHUB_PATH"
+
+      - name: Run pre-build secret gate
+        env:
+          AWG3_REQUIRE_GITLEAKS: '1'
+        run: ./scripts/secret-scan.sh
+
+      - name: Run source verification gates
+        env:
+          AWG3_REQUIRE_UCODE_RUNTIME: '1'
+        run: |
+          make verify
+          ./scripts/verify-upstream.sh
+          ./scripts/verify-patches.sh
+
+      - name: Build signed feed with the pinned SDK
+        env:
+          AWG3_APK_PRIVATE_KEY_B64: ${{ secrets.AWG3_APK_PRIVATE_KEY_B64 }}
+          AWG3_REQUIRE_SIGNING_KEY: '1'
+        run: ./scripts/build-sdk.sh
+
+      - name: Assemble GitHub Pages feed
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner="$(printf '%s' "$GITHUB_REPOSITORY" | cut -d/ -f1)"
+          repository="$(printf '%s' "$GITHUB_REPOSITORY" | cut -d/ -f2-)"
+          feed_base="https://${owner}.github.io/${repository}/feed"
+          key_hash="$(sha256sum dist/awg-openwrt3.pem | awk '{ print $1 }')"
+
+          mkdir -p public/feed/aarch64_cortex-a53
+          cp dist/*.apk dist/packages.adb dist/SHA256SUMS dist/build-info.txt \
+            public/feed/aarch64_cortex-a53/
+          cp dist/awg-openwrt3.pem public/feed/
+          sed \
+            -e "s|@FEED_BASE_URL@|${feed_base}|g" \
+            -e "s|@PUBLIC_KEY_SHA256@|${key_hash}|g" \
+            scripts/install.sh.in > public/install.sh
+          chmod 0755 public/install.sh
+
+          cat > public/index.html <<EOF
+          <!doctype html>
+          <meta charset="utf-8">
+          <title>AWG OpenWrt3 package feed</title>
+          <h1>AWG OpenWrt3 package feed</h1>
+          <p>OpenWrt 25.12.5, aarch64_cortex-a53, Cudy TR3000 v1.</p>
+          <p><a href="feed/aarch64_cortex-a53/packages.adb">packages.adb</a></p>
+          <p><a href="feed/awg-openwrt3.pem">public signing key</a></p>
+          <p>Public key SHA-256: <code>${key_hash}</code></p>
+          <p><a href="install.sh">reviewable installer</a></p>
+          EOF
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: public/
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="awg-openwrt3-${GITHUB_REF_NAME}-openwrt-25.12.5-aarch64_cortex-a53.tar.gz"
+          key_hash="$(sha256sum dist/awg-openwrt3.pem | awk '{ print $1 }')"
+          tar -C dist -czf "$archive" .
+          gh release create "$GITHUB_REF_NAME" \
+            "$archive" \
+            dist/SHA256SUMS \
+            dist/awg-openwrt3.pem \
+            --verify-tag \
+            --prerelease \
+            --notes "Release candidate. Public signing key SHA-256: ${key_hash}" \
+            --generate-notes
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-24.04
+    needs: build
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+
+      - name: Deploy signed package feed
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
