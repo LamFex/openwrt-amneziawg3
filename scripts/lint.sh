@@ -34,7 +34,10 @@ set -- \
 	tests/test-ucode-runtime.sh
 
 for file do
-	sh -n "$file"
+	case "$(sed -n '1p' "$file")" in
+		*bash) bash -n "$file" ;;
+		*) sh -n "$file" ;;
+	esac
 done
 
 if command -v shellcheck >/dev/null 2>&1; then

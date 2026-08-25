@@ -91,5 +91,6 @@ grep -Fq 'ucode runtime is mandatory in CI' tests/test-ucode-runtime.sh
 grep -Fq 'APK metadata, files, index, and solver checks passed.' \
 	scripts/verify-apk-feed.sh
 grep -Fq 'scripts/verify-apk-feed.sh' scripts/lint.sh
+grep -Fq '*bash) bash -n' scripts/lint.sh
 
 echo 'Repository policy tests passed.'
