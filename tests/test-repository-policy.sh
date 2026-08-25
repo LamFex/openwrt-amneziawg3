@@ -42,6 +42,8 @@ grep -Fq 'CONFLICTS:=amneziawg-go' amneziawg-go/Makefile
 grep -Fq 'DEPENDS:=+amneziawg3-go +bash +ip-full +netifd +nftables-json +resolveip' \
 	amneziawg-tools/Makefile
 grep -Fq 'CONFLICTS:=amneziawg-tools' amneziawg-tools-aliases/Makefile
+grep -Fxq 'define Build/Compile' amneziawg-tools-aliases/Makefile
+grep -Fxq 'define Build/Configure' amneziawg-tools-aliases/Makefile
 if grep -Fq 'amneziawg3-tools-aliases' amneziawg3/Makefile; then
 	echo 'Default meta-package unexpectedly depends on optional aliases.' >&2
 	exit 1

@@ -24,6 +24,12 @@ define Package/amneziawg3-tools-aliases/description
   package when an AWG2 amneziawg-tools package is present.
 endef
 
+define Build/Compile
+endef
+
+define Build/Configure
+endef
+
 define Package/amneziawg3-tools-aliases/install
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(LN) awg3 $(1)/usr/bin/awg
