@@ -12,14 +12,14 @@ PUBLIC_KEY="${5:-}"
 	echo "APK host tool was not found: $APK_TOOL" >&2
 	exit 2
 }
-[ -d "$FEED_DIR" ] && [ -f "${FEED_DIR}/packages.adb" ] || {
+if [ ! -d "$FEED_DIR" ] || [ ! -f "${FEED_DIR}/packages.adb" ]; then
 	echo "APK feed directory is incomplete: $FEED_DIR" >&2
 	exit 2
-}
-[ -n "$REPORT_DIR" ] && [ ! -e "$REPORT_DIR" ] || {
+fi
+if [ -z "$REPORT_DIR" ] || [ -e "$REPORT_DIR" ]; then
 	echo "APK report directory must not already exist: $REPORT_DIR" >&2
 	exit 2
-}
+fi
 case "$SIGNING_STATUS" in
 	unsigned-test) [ -z "$PUBLIC_KEY" ] ;;
 	signed-release) [ -s "$PUBLIC_KEY" ] ;;
@@ -52,10 +52,10 @@ INDEX_NAMES="$(jq -r '.packages[].name' "${REPORT_DIR}/feed-index.json" |
 }
 
 set -- "${FEED_DIR}"/*.apk
-[ "$#" -eq 5 ] && [ -f "$1" ] || {
+if [ "$#" -ne 5 ] || [ ! -f "$1" ]; then
 	echo "Expected exactly five APK package files." >&2
 	exit 1
-}
+fi
 
 for package do
 	package_file="$(basename "$package")"

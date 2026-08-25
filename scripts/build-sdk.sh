@@ -140,15 +140,15 @@ fi
 
 FEED_DIR="$(find "bin/packages/${OPENWRT_ARCH}" -mindepth 1 -maxdepth 1 \
 	-type d -name awg3 -print -quit)"
-[ -n "$FEED_DIR" ] && [ -f "${FEED_DIR}/packages.adb" ] || {
+if [ -z "$FEED_DIR" ] || [ ! -f "${FEED_DIR}/packages.adb" ]; then
 	echo "AWG3 package index was not produced." >&2
 	exit 1
-}
+fi
 set -- "${FEED_DIR}"/*.apk
-[ "$#" -eq 5 ] && [ -f "$1" ] || {
+if [ "$#" -ne 5 ] || [ ! -f "$1" ]; then
 	echo "Expected exactly five AWG3 APK files, found $# entries." >&2
 	exit 1
-}
+fi
 
 APK_REPORT_DIR="${BUILD_ROOT}/apk-reports"
 "${REPOSITORY_ROOT}/scripts/verify-apk-feed.sh" \
