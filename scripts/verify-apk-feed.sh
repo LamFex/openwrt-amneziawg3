@@ -35,13 +35,14 @@ mkdir -p "$REPORT_DIR"
 
 "$APK_TOOL" --allow-untrusted adbdump --format json \
 	"${FEED_DIR}/packages.adb" > "${REPORT_DIR}/feed-index.json"
-jq -e '.packages | type == "array" and length == 5' \
+jq -e '.packages | type == "array" and length == 6' \
 	"${REPORT_DIR}/feed-index.json" >/dev/null
 
 EXPECTED_NAMES='amneziawg3
 amneziawg3-go
 amneziawg3-tools
 amneziawg3-tools-aliases
+luci-i18n-amneziawg3-ru
 luci-proto-amneziawg3'
 INDEX_NAMES="$(jq -r '.packages[].name' "${REPORT_DIR}/feed-index.json" |
 	LC_ALL=C sort)"
@@ -52,8 +53,8 @@ INDEX_NAMES="$(jq -r '.packages[].name' "${REPORT_DIR}/feed-index.json" |
 }
 
 set -- "${FEED_DIR}"/*.apk
-if [ "$#" -ne 5 ] || [ ! -f "$1" ]; then
-	echo "Expected exactly five APK package files." >&2
+if [ "$#" -ne 6 ] || [ ! -f "$1" ]; then
+	echo "Expected exactly six APK package files." >&2
 	exit 1
 fi
 
@@ -93,6 +94,7 @@ validate_metadata amneziawg3-go 3.1.20260814-r2 aarch64_cortex-a53 MIT
 validate_metadata amneziawg3-tools 3.1.20260812-r2 aarch64_cortex-a53 \
 	'GPL-2.0-only AND Apache-2.0'
 validate_metadata amneziawg3-tools-aliases 3.1.20260812-r2 all MIT
+validate_metadata luci-i18n-amneziawg3-ru 3.1.20260814-r2 all Apache-2.0
 validate_metadata luci-proto-amneziawg3 3.1.20260814-r2 all Apache-2.0
 
 require_dependency() {
@@ -110,9 +112,11 @@ require_dependency() {
 
 require_dependency amneziawg3 amneziawg3-go
 require_dependency amneziawg3 amneziawg3-tools
+require_dependency amneziawg3 luci-i18n-amneziawg3-ru
 require_dependency amneziawg3 luci-proto-amneziawg3
 require_dependency amneziawg3-tools amneziawg3-go
 require_dependency amneziawg3-tools-aliases amneziawg3-tools
+require_dependency luci-i18n-amneziawg3-ru luci-proto-amneziawg3
 require_dependency luci-proto-amneziawg3 amneziawg3-tools
 
 jq -r '.[] | .info.name as $package | .paths[]? |
@@ -148,8 +152,9 @@ assert_package_files amneziawg3-tools '/lib/netifd/proto/amneziawg3.sh
 /usr/libexec/amneziawg3/awg-quick'
 assert_package_files amneziawg3-tools-aliases '/usr/bin/awg
 /usr/bin/awg-quick'
-assert_package_files luci-proto-amneziawg3 '/usr/lib/lua/luci/i18n/amneziawg3.ru.lmo
-/usr/share/rpcd/acl.d/luci-amneziawg3.json
+assert_package_files luci-i18n-amneziawg3-ru '/etc/uci-defaults/luci-i18n-amneziawg3-ru
+/usr/lib/lua/luci/i18n/amneziawg3.ru.lmo'
+assert_package_files luci-proto-amneziawg3 '/usr/share/rpcd/acl.d/luci-amneziawg3.json
 /usr/share/rpcd/ucode/luci.amneziawg3
 /www/luci-static/resources/protocol/amneziawg3.js'
 
@@ -186,10 +191,12 @@ mkdir -p "${VERIFY_TMP}/root"
 	--repositories-file "${VERIFY_TMP}/repositories.list" \
 	--allow-untrusted --cache=no --simulate \
 	add --usermode amneziawg3 amneziawg3-tools-aliases \
+		luci-i18n-amneziawg3-ru \
 	> "${REPORT_DIR}/solver-plan.txt"
 
 for package in amneziawg3 amneziawg3-go amneziawg3-tools \
-	amneziawg3-tools-aliases luci-proto-amneziawg3; do
+	amneziawg3-tools-aliases luci-i18n-amneziawg3-ru \
+	luci-proto-amneziawg3; do
 	grep -Fq "$package" "${REPORT_DIR}/solver-plan.txt" || {
 		echo "APK solver did not select $package." >&2
 		exit 1
@@ -197,7 +204,7 @@ for package in amneziawg3 amneziawg3-go amneziawg3-tools \
 done
 
 cat > "${REPORT_DIR}/verification-summary.txt" <<EOF
-Package-Count: 5
+Package-Count: 6
 Feed-Signing: ${SIGNING_STATUS}
 Index-Readable: yes
 Package-Integrity: verified

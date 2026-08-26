@@ -15,12 +15,13 @@ define Package/amneziawg3
   CATEGORY:=Network
   SUBMENU:=VPN
   TITLE:=AmneziaWG 3.1 for OpenWrt
-  DEPENDS:=+amneziawg3-go +amneziawg3-tools +luci-proto-amneziawg3
+  DEPENDS:=+amneziawg3-go +amneziawg3-tools +luci-proto-amneziawg3 +luci-i18n-amneziawg3-ru
 endef
 
 define Package/amneziawg3/description
   Meta-package for the AmneziaWG 3.1 userspace runtime, OpenWrt netifd
-  integration, namespaced tools, and LuCI protocol support.
+  integration, namespaced tools, LuCI protocol support, and Russian LuCI
+  translation.
 endef
 
 define Build/Compile

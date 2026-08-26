@@ -44,6 +44,7 @@ grep -Fq 'DEPENDS:=+amneziawg3-go +bash +ip-full +netifd +nftables-json +resolve
 grep -Fq 'CONFLICTS:=amneziawg-tools' amneziawg-tools-aliases/Makefile
 grep -Fxq 'define Build/Compile' amneziawg-tools-aliases/Makefile
 grep -Fxq 'define Build/Configure' amneziawg-tools-aliases/Makefile
+grep -Fq '+luci-i18n-amneziawg3-ru' amneziawg3/Makefile
 if grep -Fq 'amneziawg3-tools-aliases' amneziawg3/Makefile; then
 	echo 'Default meta-package unexpectedly depends on optional aliases.' >&2
 	exit 1
@@ -87,6 +88,9 @@ tools_version="$(sed -n 's/^PKG_VERSION:=//p' amneziawg-tools/Makefile)"
 grep -Fq "AWG_GO_VERSION=${go_version}" scripts/build-sdk.sh
 grep -Fq "AWG_TOOLS_VERSION=${tools_version}" scripts/build-sdk.sh
 grep -Fq 'Feed-Signing: ${AWG3_FEED_SIGNING_STATUS}' scripts/build-sdk.sh
+grep -Fq 'PKG_PO_VERSION:=$(PKG_VERSION)-r$(PKG_RELEASE)' \
+	luci-proto-amneziawg3/Makefile
+grep -Fq 'Package-Count: 6' scripts/verify-apk-feed.sh
 grep -Fq 'package/feeds/awg3/amneziawg-tools/compile' scripts/build-sdk.sh
 grep -Fq 'package/feeds/awg3/amneziawg-tools-aliases/compile' scripts/build-sdk.sh
 if rg -n 'package/feeds/awg3/amneziawg3-tools(-aliases)?/compile' \

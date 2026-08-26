@@ -3,7 +3,7 @@
 ## LuCI не показывает AmneziaWG 3.1
 
 ```sh
-apk info luci-proto-amneziawg3
+apk info luci-proto-amneziawg3 luci-i18n-amneziawg3-ru
 ls -l /www/luci-static/resources/protocol/amneziawg3.js
 ls -l /usr/share/rpcd/ucode/luci.amneziawg3
 /etc/init.d/rpcd restart

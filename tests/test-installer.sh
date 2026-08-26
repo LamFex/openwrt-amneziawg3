@@ -156,6 +156,7 @@ case "$command_name" in
 		db_put amneziawg3 '3.1.20260814-r2'
 		db_put amneziawg3-go '3.1.20260814-r2'
 		db_put amneziawg3-tools '3.1.20260812-r2'
+		db_put luci-i18n-amneziawg3-ru '3.1.20260814-r2'
 		db_put luci-proto-amneziawg3 '3.1.20260814-r2'
 		db_put new-dependency '1-r1'
 		if [ "${APK_FAIL_POSTINSTALL:-0}" -eq 1 ]; then

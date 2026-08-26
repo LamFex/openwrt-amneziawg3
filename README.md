@@ -43,6 +43,7 @@ LuCI, запуск через netifd и точечное обновление п
 | `amneziawg3-go` | `/usr/bin/amneziawg-go` и init-фасад |
 | `amneziawg3-tools` | `awg3`, `awg-quick3`, netifd protocol helper |
 | `luci-proto-amneziawg3` | протокол **AmneziaWG 3.1** в LuCI |
+| `luci-i18n-amneziawg3-ru` | русская локализация LuCI protocol plugin |
 | `amneziawg3` | безопасный meta-package для обычной установки |
 | `amneziawg3-tools-aliases` | опциональные `/usr/bin/awg` и `/usr/bin/awg-quick` |
 
@@ -259,7 +260,8 @@ Feed публикует возрастающие package versions/releases, по
 
 ```sh
 apk update
-apk upgrade amneziawg3-go amneziawg3-tools luci-proto-amneziawg3 amneziawg3
+apk upgrade amneziawg3-go amneziawg3-tools luci-proto-amneziawg3 \
+  luci-i18n-amneziawg3-ru amneziawg3
 ```
 
 Если установлен optional alias package, обновляйте и его:
@@ -324,6 +326,7 @@ packages=
 for package in \
   amneziawg3-tools-aliases \
   amneziawg3 \
+  luci-i18n-amneziawg3-ru \
   luci-proto-amneziawg3 \
   amneziawg3-tools \
   amneziawg3-go; do
@@ -353,7 +356,8 @@ ubus call network.interface.awg3 status
 awg3 show awg3
 ip -details link show dev awg3
 logread -e amneziawg3
-apk info amneziawg3-go amneziawg3-tools luci-proto-amneziawg3
+apk info amneziawg3-go amneziawg3-tools luci-proto-amneziawg3 \
+  luci-i18n-amneziawg3-ru
 ```
 
 Отсутствие socket-файла или его наличие само по себе не считается readiness.

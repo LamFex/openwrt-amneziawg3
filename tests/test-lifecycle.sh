@@ -187,6 +187,7 @@ uninstall_plan() {
 	for package in \
 		amneziawg3-tools-aliases \
 		amneziawg3 \
+		luci-i18n-amneziawg3-ru \
 		luci-proto-amneziawg3 \
 		amneziawg3-tools \
 		amneziawg3-go; do
@@ -201,6 +202,8 @@ uninstall_plan() {
 	' amneziawg3-tools-aliases amneziawg3 amneziawg3-tools' ]]
 [[ "$(uninstall_plan 'amneziawg3 amneziawg3-tools')" == \
 	' amneziawg3 amneziawg3-tools' ]]
+[[ "$(uninstall_plan 'amneziawg3 luci-i18n-amneziawg3-ru luci-proto-amneziawg3')" == \
+	' amneziawg3 luci-i18n-amneziawg3-ru luci-proto-amneziawg3' ]]
 [[ -z "$(uninstall_plan '')" ]]
 
 echo 'Package and init lifecycle tests passed.'

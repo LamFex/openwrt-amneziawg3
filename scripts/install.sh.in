@@ -24,7 +24,7 @@ RUNTIME_PATH="${INSTALL_ROOT}/usr/bin/amneziawg-go"
 INIT_PATH="${INSTALL_ROOT}/etc/init.d/amneziawg3"
 INIT_TARGET=/usr/libexec/amneziawg3/amneziawg3.init
 BACKUP_PARENT="${INSTALL_ROOT}/root"
-PROJECT_PACKAGES='amneziawg3 amneziawg3-go amneziawg3-tools amneziawg3-tools-aliases luci-proto-amneziawg3'
+PROJECT_PACKAGES='amneziawg3 amneziawg3-go amneziawg3-tools amneziawg3-tools-aliases luci-i18n-amneziawg3-ru luci-proto-amneziawg3'
 
 BACKUP_DIR=
 TMP_KEY=

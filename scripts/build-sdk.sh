@@ -97,6 +97,7 @@ CONFIG_PACKAGE_amneziawg3-go=m
 CONFIG_PACKAGE_amneziawg3-tools=m
 CONFIG_PACKAGE_amneziawg3-tools-aliases=m
 CONFIG_PACKAGE_luci-proto-amneziawg3=m
+CONFIG_PACKAGE_luci-i18n-amneziawg3-ru=m
 CONFIG_PACKAGE_amneziawg3=m
 CONFIG
 
@@ -149,8 +150,8 @@ if [ -z "$FEED_DIR" ] || [ ! -f "${FEED_DIR}/packages.adb" ]; then
 	exit 1
 fi
 set -- "${FEED_DIR}"/*.apk
-if [ "$#" -ne 5 ] || [ ! -f "$1" ]; then
-	echo "Expected exactly five AWG3 APK files, found $# entries." >&2
+if [ "$#" -ne 6 ] || [ ! -f "$1" ]; then
+	echo "Expected exactly six AWG3 APK files, found $# entries." >&2
 	exit 1
 fi
 
