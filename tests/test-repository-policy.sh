@@ -90,6 +90,12 @@ grep -Fq "AWG_TOOLS_VERSION=${tools_version}" scripts/build-sdk.sh
 grep -Fq 'Feed-Signing: ${AWG3_FEED_SIGNING_STATUS}' scripts/build-sdk.sh
 grep -Fq 'PKG_PO_VERSION:=$(PKG_VERSION)-r$(PKG_RELEASE)' \
 	luci-proto-amneziawg3/Makefile
+for package_makefile in amneziawg3/Makefile \
+	amneziawg-tools-aliases/Makefile; do
+	package_name="$(sed -n 's/^PKG_NAME:=//p' "$package_makefile")"
+	sed -n "/^define Package\/${package_name}$/,/^endef$/p" \
+		"$package_makefile" | grep -Fq '  PKGARCH:=all'
+done
 grep -Fq 'Package-Count: 6' scripts/verify-apk-feed.sh
 [[ "$(rg -c '^validate_metadata .* noarch ' scripts/verify-apk-feed.sh)" == 4 ]]
 [[ "$(rg -c '^validate_metadata .* aarch64_cortex-a53 ' \

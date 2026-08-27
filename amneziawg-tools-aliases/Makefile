@@ -3,7 +3,6 @@ include $(TOPDIR)/rules.mk
 PKG_NAME:=amneziawg3-tools-aliases
 PKG_VERSION:=3.1.20260812
 PKG_RELEASE:=2
-PKGARCH:=all
 
 PKG_MAINTAINER:=AWG OpenWrt3 contributors
 PKG_LICENSE:=MIT
@@ -17,6 +16,7 @@ define Package/amneziawg3-tools-aliases
   TITLE:=Optional standard command aliases for AmneziaWG 3.1
   DEPENDS:=+amneziawg3-tools
   CONFLICTS:=amneziawg-tools
+  PKGARCH:=all
 endef
 
 define Package/amneziawg3-tools-aliases/description

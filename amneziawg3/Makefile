@@ -3,7 +3,6 @@ include $(TOPDIR)/rules.mk
 PKG_NAME:=amneziawg3
 PKG_VERSION:=3.1.20260814
 PKG_RELEASE:=2
-PKGARCH:=all
 
 PKG_MAINTAINER:=AWG OpenWrt3 contributors
 PKG_LICENSE:=MIT
@@ -16,6 +15,7 @@ define Package/amneziawg3
   SUBMENU:=VPN
   TITLE:=AmneziaWG 3.1 for OpenWrt
   DEPENDS:=+amneziawg3-go +amneziawg3-tools +luci-proto-amneziawg3 +luci-i18n-amneziawg3-ru
+  PKGARCH:=all
 endef
 
 define Package/amneziawg3/description
