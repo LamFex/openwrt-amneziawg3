@@ -91,6 +91,13 @@ grep -Fq 'Feed-Signing: ${AWG3_FEED_SIGNING_STATUS}' scripts/build-sdk.sh
 grep -Fq 'PKG_PO_VERSION:=$(PKG_VERSION)-r$(PKG_RELEASE)' \
 	luci-proto-amneziawg3/Makefile
 grep -Fq 'Package-Count: 6' scripts/verify-apk-feed.sh
+[[ "$(rg -c '^validate_metadata .* noarch ' scripts/verify-apk-feed.sh)" == 4 ]]
+[[ "$(rg -c '^validate_metadata .* aarch64_cortex-a53 ' \
+	scripts/verify-apk-feed.sh)" == 2 ]]
+if rg -n '^validate_metadata .* all ' scripts/verify-apk-feed.sh >/dev/null; then
+	echo 'APK v3 metadata must use noarch for PKGARCH:=all packages.' >&2
+	exit 1
+fi
 grep -Fq 'package/feeds/awg3/amneziawg-tools/compile' scripts/build-sdk.sh
 grep -Fq 'package/feeds/awg3/amneziawg-tools-aliases/compile' scripts/build-sdk.sh
 if rg -n 'package/feeds/awg3/amneziawg3-tools(-aliases)?/compile' \

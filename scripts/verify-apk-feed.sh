@@ -87,13 +87,13 @@ validate_metadata() {
 	}
 }
 
-validate_metadata amneziawg3 3.1.20260814-r2 all MIT
+validate_metadata amneziawg3 3.1.20260814-r2 noarch MIT
 validate_metadata amneziawg3-go 3.1.20260814-r2 aarch64_cortex-a53 MIT
 validate_metadata amneziawg3-tools 3.1.20260812-r2 aarch64_cortex-a53 \
 	'GPL-2.0-only AND Apache-2.0'
-validate_metadata amneziawg3-tools-aliases 3.1.20260812-r2 all MIT
-validate_metadata luci-i18n-amneziawg3-ru 3.1.20260814-r2 all Apache-2.0
-validate_metadata luci-proto-amneziawg3 3.1.20260814-r2 all Apache-2.0
+validate_metadata amneziawg3-tools-aliases 3.1.20260812-r2 noarch MIT
+validate_metadata luci-i18n-amneziawg3-ru 3.1.20260814-r2 noarch Apache-2.0
+validate_metadata luci-proto-amneziawg3 3.1.20260814-r2 noarch Apache-2.0
 
 require_dependency() {
 	local package="$1"
