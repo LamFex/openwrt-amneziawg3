@@ -104,10 +104,15 @@ require_dependency() {
 	local dependency="$2"
 
 	jq -e --arg package "$package" --arg dependency "$dependency" '
-		map(select(.info.name == $package))[0].info.depends // [] |
-		map(.name) | index($dependency) != null
+		(map(select(.info.name == $package))[0].info.depends // []) as $depends |
+		($depends | type == "array") and
+		($depends | index($dependency) != null)
 	' "${REPORT_DIR}/package-metadata.json" >/dev/null || {
 		echo "$package does not depend on $dependency." >&2
+		jq -c --arg package "$package" '
+			map(select(.info.name == $package))[0].info |
+			{name, depends}
+		' "${REPORT_DIR}/package-metadata.json" >&2 || true
 		exit 1
 	}
 }
