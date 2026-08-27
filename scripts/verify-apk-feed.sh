@@ -147,21 +147,26 @@ assert_package_files() {
 	}
 }
 
-assert_package_files amneziawg3 ''
-assert_package_files amneziawg3-go '/usr/bin/amneziawg-go
+assert_package_files amneziawg3 '/lib/apk/packages/amneziawg3.list'
+assert_package_files amneziawg3-go '/lib/apk/packages/amneziawg3-go.list
+/usr/bin/amneziawg-go
 /usr/libexec/amneziawg3/amneziawg3.init'
-assert_package_files amneziawg3-tools '/lib/netifd/proto/amneziawg3.sh
+assert_package_files amneziawg3-tools '/lib/apk/packages/amneziawg3-tools.list
+/lib/netifd/proto/amneziawg3.sh
 /usr/bin/amneziawg3_watchdog
 /usr/bin/awg-quick3
 /usr/bin/awg3
 /usr/libexec/amneziawg3/amneziawg3-key-helper
 /usr/libexec/amneziawg3/awg
 /usr/libexec/amneziawg3/awg-quick'
-assert_package_files amneziawg3-tools-aliases '/usr/bin/awg
+assert_package_files amneziawg3-tools-aliases '/lib/apk/packages/amneziawg3-tools-aliases.list
+/usr/bin/awg
 /usr/bin/awg-quick'
 assert_package_files luci-i18n-amneziawg3-ru '/etc/uci-defaults/luci-i18n-amneziawg3-ru
+/lib/apk/packages/luci-i18n-amneziawg3-ru.list
 /usr/lib/lua/luci/i18n/amneziawg3.ru.lmo'
-assert_package_files luci-proto-amneziawg3 '/usr/share/rpcd/acl.d/luci-amneziawg3.json
+assert_package_files luci-proto-amneziawg3 '/lib/apk/packages/luci-proto-amneziawg3.list
+/usr/share/rpcd/acl.d/luci-amneziawg3.json
 /usr/share/rpcd/ucode/luci.amneziawg3
 /www/luci-static/resources/protocol/amneziawg3.js'
 
