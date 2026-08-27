@@ -25,7 +25,9 @@ if rg -n '^PKG_CPE_ID:=' "${package_makefiles[@]}" >/dev/null; then
 	echo 'An unverified CPE identifier is present.' >&2
 	exit 1
 fi
-grep -Fxq 'LUCI_MAINTAINER:=AWG OpenWrt3 contributors' \
+grep -Fxq 'PKG_MAINTAINER:=AWG OpenWrt3 contributors' \
+	luci-proto-amneziawg3/Makefile
+grep -Fxq 'LUCI_MAINTAINER:=$(PKG_MAINTAINER)' \
 	luci-proto-amneziawg3/Makefile
 grep -Fq 'пока намеренно указывают коллективное имя' CONTRIBUTING.md
 grep -Fq 'Name <email>' CONTRIBUTING.md
