@@ -151,8 +151,10 @@ assert_package_files amneziawg3 '/lib/apk/packages/amneziawg3.list'
 assert_package_files amneziawg3-go '/lib/apk/packages/amneziawg3-go.list
 /usr/bin/amneziawg-go
 /usr/libexec/amneziawg3/amneziawg3.init'
-assert_package_files amneziawg3-tools '/lib/apk/packages/amneziawg3-tools.list
+assert_package_files amneziawg3-tools '/lib/apk/packages/amneziawg3-tools.conffiles
+/lib/apk/packages/amneziawg3-tools.list
 /lib/netifd/proto/amneziawg3.sh
+/lib/upgrade/keep.d/amneziawg3-tools
 /usr/bin/amneziawg3_watchdog
 /usr/bin/awg-quick3
 /usr/bin/awg3
