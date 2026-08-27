@@ -83,6 +83,10 @@ validate_metadata() {
 			(.[0].info.maintainer | type == "string" and length > 0)
 		' "${REPORT_DIR}/package-metadata.json" >/dev/null || {
 		echo "Unexpected metadata for $name." >&2
+		jq -c --arg name "$name" '
+			map(select(.info.name == $name))[0].info |
+			{name, version, arch, license, maintainer}
+		' "${REPORT_DIR}/package-metadata.json" >&2 || true
 		exit 1
 	}
 }
