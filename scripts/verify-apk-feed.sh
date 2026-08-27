@@ -200,11 +200,18 @@ ndx https://downloads.openwrt.org/releases/25.12.5/packages/aarch64_cortex-a53/r
 ndx https://downloads.openwrt.org/releases/25.12.5/packages/aarch64_cortex-a53/telephony/packages.adb
 EOF
 mkdir -p "${VERIFY_TMP}/root"
+set -- add --initdb
+[ "$(id -u)" -eq 0 ] || set -- "$@" --usermode
+"$APK_TOOL" --root "${VERIFY_TMP}/root" \
+	--arch aarch64_cortex-a53 \
+	--repositories-file /dev/null \
+	--allow-untrusted --cache=no \
+	"$@" >/dev/null
 "$APK_TOOL" --root "${VERIFY_TMP}/root" \
 	--arch aarch64_cortex-a53 \
 	--repositories-file "${VERIFY_TMP}/repositories.list" \
 	--allow-untrusted --cache=no --simulate \
-	add --initdb --usermode amneziawg3 amneziawg3-tools-aliases \
+	add amneziawg3 amneziawg3-tools-aliases \
 		luci-i18n-amneziawg3-ru \
 	> "${REPORT_DIR}/solver-plan.txt"
 
