@@ -204,7 +204,7 @@ mkdir -p "${VERIFY_TMP}/root"
 	--arch aarch64_cortex-a53 \
 	--repositories-file "${VERIFY_TMP}/repositories.list" \
 	--allow-untrusted --cache=no --simulate \
-	add --usermode amneziawg3 amneziawg3-tools-aliases \
+	add --initdb --usermode amneziawg3 amneziawg3-tools-aliases \
 		luci-i18n-amneziawg3-ru \
 	> "${REPORT_DIR}/solver-plan.txt"
 
