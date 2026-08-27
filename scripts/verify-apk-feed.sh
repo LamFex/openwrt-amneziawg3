@@ -16,6 +16,7 @@ if [ ! -d "$FEED_DIR" ] || [ ! -f "${FEED_DIR}/packages.adb" ]; then
 	echo "APK feed directory is incomplete: $FEED_DIR" >&2
 	exit 2
 fi
+FEED_DIR="$(CDPATH='' cd -- "$FEED_DIR" && pwd)"
 if [ -z "$REPORT_DIR" ] || [ -e "$REPORT_DIR" ]; then
 	echo "APK report directory must not already exist: $REPORT_DIR" >&2
 	exit 2
