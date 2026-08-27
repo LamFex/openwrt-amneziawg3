@@ -107,6 +107,10 @@ grep -Fq 'UCODE_COMMIT=85922056ef7abeace3cca3ab28bc1ac2d88e31b1' \
 grep -Fq 'ucode runtime is mandatory in CI' tests/test-ucode-runtime.sh
 grep -Fq 'APK metadata, files, index, and solver checks passed.' \
 	scripts/verify-apk-feed.sh
+if rg -n '"\$APK_TOOL".* manifest ' scripts/verify-apk-feed.sh >/dev/null; then
+	echo 'The feed verifier must not require an initialized apk database.' >&2
+	exit 1
+fi
 grep -Fq 'scripts/verify-apk-feed.sh' scripts/lint.sh
 grep -Fq '*bash) bash -n' scripts/lint.sh
 

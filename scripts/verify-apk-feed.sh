@@ -61,8 +61,6 @@ fi
 for package do
 	package_file="$(basename "$package")"
 	"$APK_TOOL" --allow-untrusted verify "$package" >/dev/null
-	"$APK_TOOL" --allow-untrusted manifest "$package" \
-		> "${VERIFY_TMP}/${package_file}.manifest"
 	"$APK_TOOL" --allow-untrusted adbdump --format json "$package" \
 		> "${VERIFY_TMP}/${package_file}.json"
 done
