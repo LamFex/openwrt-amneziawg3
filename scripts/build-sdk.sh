@@ -133,7 +133,28 @@ if [ "$AWG3_FEED_SIGNING_STATUS" = signed-release ]; then
 	openssl ec -in "$APK_PRIVATE_KEY" -pubout -out "$APK_PUBLIC_KEY" 2>/dev/null
 fi
 
-make package/index
+FEED_DIR="$(find "bin/packages/${OPENWRT_ARCH}" -mindepth 1 -maxdepth 1 \
+	-type d -name awg3 -print -quit)"
+if [ -z "$FEED_DIR" ]; then
+	echo "AWG3 package directory was not produced." >&2
+	exit 1
+fi
+set -- "${FEED_DIR}"/*.apk
+if [ "$#" -ne 6 ] || [ ! -f "$1" ]; then
+	echo "Expected exactly six AWG3 APK files, found $# entries." >&2
+	exit 1
+fi
+
+# The SDK also leaves dependency APKs in other output feeds. Indexing every
+# PACKAGE_SUBDIRS entry would make apk solve those incomplete, SDK-local feeds
+# without the matching target kernel repository. Use OpenWrt's own index target
+# while limiting it to the feed this project publishes.
+make package/index PACKAGE_SUBDIRS="$FEED_DIR"
+
+if [ ! -f "${FEED_DIR}/packages.adb" ]; then
+	echo "AWG3 package index was not produced." >&2
+	exit 1
+fi
 
 if [ "$AWG3_FEED_SIGNING_STATUS" = signed-release ]; then
 	[ -s "$APK_PUBLIC_KEY" ] || {
@@ -141,18 +162,6 @@ if [ "$AWG3_FEED_SIGNING_STATUS" = signed-release ]; then
 		exit 1
 	}
 	rm -f -- "$APK_PRIVATE_KEY"
-fi
-
-FEED_DIR="$(find "bin/packages/${OPENWRT_ARCH}" -mindepth 1 -maxdepth 1 \
-	-type d -name awg3 -print -quit)"
-if [ -z "$FEED_DIR" ] || [ ! -f "${FEED_DIR}/packages.adb" ]; then
-	echo "AWG3 package index was not produced." >&2
-	exit 1
-fi
-set -- "${FEED_DIR}"/*.apk
-if [ "$#" -ne 6 ] || [ ! -f "$1" ]; then
-	echo "Expected exactly six AWG3 APK files, found $# entries." >&2
-	exit 1
 fi
 
 APK_REPORT_DIR="${BUILD_ROOT}/apk-reports"

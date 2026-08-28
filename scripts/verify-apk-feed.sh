@@ -194,6 +194,7 @@ fi
 cat > "${VERIFY_TMP}/repositories.list" <<EOF
 ndx file://${FEED_DIR}/packages.adb
 ndx https://downloads.openwrt.org/releases/25.12.5/targets/mediatek/filogic/packages/packages.adb
+ndx https://downloads.openwrt.org/releases/25.12.5/targets/mediatek/filogic/kmods/6.12.94-1-5a6c1f71be683ae9980b15d3ce73e24d/packages.adb
 ndx https://downloads.openwrt.org/releases/25.12.5/packages/aarch64_cortex-a53/base/packages.adb
 ndx https://downloads.openwrt.org/releases/25.12.5/packages/aarch64_cortex-a53/luci/packages.adb
 ndx https://downloads.openwrt.org/releases/25.12.5/packages/aarch64_cortex-a53/packages/packages.adb

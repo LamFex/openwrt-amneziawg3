@@ -108,6 +108,11 @@ if rg -n '^validate_metadata .* all ' scripts/verify-apk-feed.sh >/dev/null; the
 fi
 grep -Fq 'package/feeds/awg3/amneziawg-tools/compile' scripts/build-sdk.sh
 grep -Fq 'package/feeds/awg3/amneziawg-tools-aliases/compile' scripts/build-sdk.sh
+grep -Fq 'make package/index PACKAGE_SUBDIRS="$FEED_DIR"' scripts/build-sdk.sh
+if grep -Fxq 'make package/index' scripts/build-sdk.sh; then
+	echo 'The SDK build must not index unrelated, incomplete output feeds.' >&2
+	exit 1
+fi
 if rg -n 'package/feeds/awg3/amneziawg3-tools(-aliases)?/compile' \
 		scripts/build-sdk.sh >/dev/null; then
 	echo 'An SDK target uses a binary package name instead of its feed directory.' >&2
@@ -123,6 +128,8 @@ grep -Fq 'ucode runtime is mandatory in CI' tests/test-ucode-runtime.sh
 grep -Fq 'APK metadata, files, index, and solver checks passed.' \
 	scripts/verify-apk-feed.sh
 grep -Fq '($depends | index($dependency) != null)' \
+	scripts/verify-apk-feed.sh
+grep -Fq 'targets/mediatek/filogic/kmods/6.12.94-1-5a6c1f71be683ae9980b15d3ce73e24d/packages.adb' \
 	scripts/verify-apk-feed.sh
 if rg -n 'map\(\.name\)' scripts/verify-apk-feed.sh >/dev/null; then
 	echo 'APK v3 dependencies must be validated as strings.' >&2
