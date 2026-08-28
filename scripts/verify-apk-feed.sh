@@ -93,10 +93,10 @@ validate_metadata() {
 }
 
 validate_metadata amneziawg3 3.1.20260814-r2 noarch MIT
-validate_metadata amneziawg3-go 3.1.20260814-r2 aarch64_cortex-a53 MIT
-validate_metadata amneziawg3-tools 3.1.20260812-r2 aarch64_cortex-a53 \
+validate_metadata amneziawg3-go 3.1.20260814-r3 aarch64_cortex-a53 MIT
+validate_metadata amneziawg3-tools 3.1.20260812-r3 aarch64_cortex-a53 \
 	'GPL-2.0-only AND Apache-2.0'
-validate_metadata amneziawg3-tools-aliases 3.1.20260812-r2 noarch MIT
+validate_metadata amneziawg3-tools-aliases 3.1.20260812-r3 noarch MIT
 validate_metadata luci-i18n-amneziawg3-ru 3.1.20260814-r2 noarch Apache-2.0
 validate_metadata luci-proto-amneziawg3 3.1.20260814-r2 noarch Apache-2.0
 
@@ -126,6 +126,32 @@ require_dependency amneziawg3-tools amneziawg3-go
 require_dependency amneziawg3-tools-aliases amneziawg3-tools
 require_dependency luci-i18n-amneziawg3-ru luci-proto-amneziawg3
 require_dependency luci-proto-amneziawg3 amneziawg3-tools
+require_dependency amneziawg3-go '!amneziawg-go'
+require_dependency amneziawg3-tools '!amneziawg-tools'
+require_dependency amneziawg3-tools-aliases '!amneziawg-tools'
+
+jq '[.[] |
+	select(.info.name == "amneziawg3-go" or
+		.info.name == "amneziawg3-tools" or
+		.info.name == "amneziawg3-tools-aliases") |
+	{
+		name: .info.name,
+		version: .info.version,
+		arch: .info.arch,
+		negative_dependencies: [
+			(.info.depends // [])[] | select(startswith("!"))
+		]
+	}]' "${REPORT_DIR}/package-metadata.json" \
+	> "${REPORT_DIR}/negative-dependencies.json"
+jq -e '
+	(length == 3) and
+	((map(select(.name == "amneziawg3-go" and
+		.negative_dependencies == ["!amneziawg-go"])) | length) == 1) and
+	((map(select(.name == "amneziawg3-tools" and
+		.negative_dependencies == ["!amneziawg-tools"])) | length) == 1) and
+	((map(select(.name == "amneziawg3-tools-aliases" and
+		.negative_dependencies == ["!amneziawg-tools"])) | length) == 1)
+' "${REPORT_DIR}/negative-dependencies.json" >/dev/null
 
 jq -r '.[] | .info.name as $package | .paths[]? |
 	.name as $directory | .files[]? |
@@ -226,6 +252,13 @@ for package in amneziawg3 amneziawg3-go amneziawg3-tools \
 	}
 done
 
+"$(dirname "$0")/test-apk-lifecycle.sh" \
+	"$APK_TOOL" \
+	"$FEED_DIR" \
+	"$REPORT_DIR" \
+	"${REPORT_DIR}/package-metadata.json" \
+	"${VERIFY_TMP}/repositories.list"
+
 cat > "${REPORT_DIR}/verification-summary.txt" <<EOF
 Package-Count: 6
 Feed-Signing: ${SIGNING_STATUS}
@@ -234,6 +267,11 @@ Package-Integrity: verified
 Metadata-Allowlist: verified
 Installed-File-Allowlist: verified
 Dependency-Solver: verified
+Negative-Dependency-Metadata: verified
+Forward-AWG2-Conflict: verified
+Partial-Transaction-Rejection: verified
+Reverse-AWG2-Conflict: verified
+Upgrade-r2-to-r3: verified
 EOF
 
 echo "APK metadata, files, index, and solver checks passed."

@@ -13,12 +13,12 @@ package_makefiles=(
 	luci-proto-amneziawg3/Makefile
 )
 
-for makefile in "${package_makefiles[@]}"; do
-	release="$(sed -n 's/^PKG_RELEASE:=//p' "$makefile")"
-	[[ "$release" == 2 ]] || {
-		echo "$makefile has incoherent PKG_RELEASE=$release" >&2
-		exit 1
-	}
+for makefile in amneziawg-go/Makefile amneziawg-tools/Makefile \
+	amneziawg-tools-aliases/Makefile; do
+	[[ "$(sed -n 's/^PKG_RELEASE:=//p' "$makefile")" == 3 ]]
+done
+for makefile in amneziawg3/Makefile luci-proto-amneziawg3/Makefile; do
+	[[ "$(sed -n 's/^PKG_RELEASE:=//p' "$makefile")" == 2 ]]
 done
 
 if rg -n '^PKG_CPE_ID:=' "${package_makefiles[@]}" >/dev/null; then
@@ -41,9 +41,22 @@ fi
 grep -Fq 'DEPENDS:=@TARGET_mediatek_filogic $(GO_ARCH_DEPENDS) +kmod-tun' \
 	amneziawg-go/Makefile
 grep -Fq 'CONFLICTS:=amneziawg-go' amneziawg-go/Makefile
+grep -Fq 'Package/amneziawg3-go/DEPENDS := $(Package/amneziawg3-go/DEPENDS)$(comma) !amneziawg-go' \
+	amneziawg-go/Makefile
 grep -Fq 'DEPENDS:=+amneziawg3-go +bash +ip-full +netifd +nftables-json +resolveip' \
 	amneziawg-tools/Makefile
+grep -Fq 'Package/amneziawg3-tools/DEPENDS := $(Package/amneziawg3-tools/DEPENDS)$(comma) !amneziawg-tools' \
+	amneziawg-tools/Makefile
+grep -Fq 'CONFLICTS:=amneziawg-tools' amneziawg-tools/Makefile
 grep -Fq 'CONFLICTS:=amneziawg-tools' amneziawg-tools-aliases/Makefile
+grep -Fq 'Package/amneziawg3-tools-aliases/DEPENDS := $(Package/amneziawg3-tools-aliases/DEPENDS)$(comma) !amneziawg-tools' \
+	amneziawg-tools-aliases/Makefile
+if rg -n 'EXTRA_DEPENDS:.*!amneziawg-' \
+		amneziawg-go/Makefile amneziawg-tools/Makefile \
+		amneziawg-tools-aliases/Makefile >/dev/null; then
+	echo 'Unversioned APK conflicts must not use EXTRA_DEPENDS.' >&2
+	exit 1
+fi
 grep -Fxq 'define Build/Compile' amneziawg-tools-aliases/Makefile
 grep -Fxq 'define Build/Configure' amneziawg-tools-aliases/Makefile
 grep -Fq '+luci-i18n-amneziawg3-ru' amneziawg3/Makefile
@@ -61,7 +74,7 @@ grep -Fq 'Gate 2b — netifd protocol discovery' docs/router-validation.md
 grep -Fq 'ubus call network reload' docs/architecture.md docs/troubleshooting.md
 grep -Fq 'не выполняют restart сами' docs/router-validation.md
 grep -Fq 'ifdown <interface>`/`ifup <interface>' docs/architecture.md
-grep -Fq 'Для текущего `-r2`' README.md
+grep -Fq 'Для текущего `luci-proto-amneziawg3` `-r2`' README.md
 
 if rg -n '^[[:space:]]*(/etc/init.d/network|ifup|reboot)([[:space:]]|$)' \
 		amneziawg-go/Makefile amneziawg-tools/Makefile \
@@ -129,6 +142,18 @@ grep -Fq 'APK metadata, files, index, and solver checks passed.' \
 	scripts/verify-apk-feed.sh
 grep -Fq '($depends | index($dependency) != null)' \
 	scripts/verify-apk-feed.sh
+grep -Fq "require_dependency amneziawg3-go '!amneziawg-go'" \
+	scripts/verify-apk-feed.sh
+grep -Fq "require_dependency amneziawg3-tools '!amneziawg-tools'" \
+	scripts/verify-apk-feed.sh
+grep -Fq 'test-apk-lifecycle.sh' scripts/verify-apk-feed.sh scripts/lint.sh
+grep -Fq 'Forward-AWG2-to-AWG3: verified' \
+	scripts/test-apk-lifecycle.sh
+grep -Fq 'Reverse-AWG3-to-AWG2: verified' \
+	scripts/test-apk-lifecycle.sh
+grep -Fq 'Upgrade-r2-to-r3: verified' scripts/test-apk-lifecycle.sh
+grep -Fq 'negative-dependencies.json' scripts/build-sdk.sh
+grep -Fq 'apk-lifecycle-report.txt' scripts/build-sdk.sh
 grep -Fq 'targets/mediatek/filogic/kmods/6.12.94-1-5a6c1f71be683ae9980b15d3ce73e24d/packages.adb' \
 	scripts/verify-apk-feed.sh
 if rg -n 'map\(\.name\)' scripts/verify-apk-feed.sh >/dev/null; then

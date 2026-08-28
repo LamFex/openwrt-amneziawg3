@@ -154,8 +154,8 @@ case "$command_name" in
 		[ "$exact" -eq 0 ] || exit 0
 
 		db_put amneziawg3 '3.1.20260814-r2'
-		db_put amneziawg3-go '3.1.20260814-r2'
-		db_put amneziawg3-tools '3.1.20260812-r2'
+		db_put amneziawg3-go '3.1.20260814-r3'
+		db_put amneziawg3-tools '3.1.20260812-r3'
 		db_put luci-i18n-amneziawg3-ru '3.1.20260814-r2'
 		db_put luci-proto-amneziawg3 '3.1.20260814-r2'
 		db_put new-dependency '1-r1'
@@ -165,7 +165,7 @@ case "$command_name" in
 		fi
 		for package do
 			[ "$package" != amneziawg3-tools-aliases ] || \
-				db_put amneziawg3-tools-aliases '3.1.20260812-r2'
+				db_put amneziawg3-tools-aliases '3.1.20260812-r3'
 			grep -Fxq "$package" "$APK_WORLD" || \
 				printf '%s\n' "$package" >> "$APK_WORLD"
 		done

@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=amneziawg3-tools
 PKG_VERSION:=3.1.20260812
-PKG_RELEASE:=2
+PKG_RELEASE:=3
 
 PKG_SOURCE:=amneziawg-tools-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/amnezia-vpn/amneziawg-tools/tar.gz/refs/tags/v$(PKG_VERSION)?
@@ -28,6 +28,7 @@ define Package/amneziawg3-tools
   TITLE:=AmneziaWG 3.1 control and OpenWrt integration tools
   URL:=https://github.com/amnezia-vpn/amneziawg-tools
   DEPENDS:=+amneziawg3-go +bash +ip-full +netifd +nftables-json +resolveip
+  CONFLICTS:=amneziawg-tools
 endef
 
 define Package/amneziawg3-tools/description
@@ -67,3 +68,11 @@ fi
 endef
 
 $(eval $(call BuildPackage,amneziawg3-tools))
+
+# OpenWrt 25.12 does not serialize CONFLICTS into APK v3 metadata. Append the
+# apk-tools negative dependency after BuildPackage has processed menu deps.
+ifeq ($(DUMP),)
+ifneq ($(CONFIG_USE_APK),)
+Package/amneziawg3-tools/DEPENDS := $(Package/amneziawg3-tools/DEPENDS)$(comma) !amneziawg-tools
+endif
+endif

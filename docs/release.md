@@ -28,11 +28,13 @@ make verify
 
 Затем дождитесь зелёного workflow **Build OpenWrt APKs** и проверьте artifact:
 
-- пять expected APK;
+- шесть expected APK;
 - unsigned test `packages.adb`;
 - `SHA256SUMS`;
 - `build-info.txt`;
-- package metadata и отсутствие secrets.
+- package metadata и отсутствие secrets;
+- `negative-dependencies.json` с APK-native AWG2 conflicts;
+- `apk-lifecycle-report.txt` с forward, reverse, partial и upgrade evidence.
 
 Public key появляется только в trusted tag build, который требует dedicated
 Actions secret. Обычный CI этот secret не получает и private key не создаёт.

@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=amneziawg3-go
 PKG_VERSION:=3.1.20260814
-PKG_RELEASE:=2
+PKG_RELEASE:=3
 
 PKG_SOURCE:=amneziawg-go-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/amnezia-vpn/amneziawg-go/tar.gz/refs/tags/v$(PKG_VERSION)?
@@ -90,3 +90,11 @@ endef
 
 $(eval $(call GoBinPackage,amneziawg3-go))
 $(eval $(call BuildPackage,amneziawg3-go))
+
+# OpenWrt 25.12 does not serialize CONFLICTS into APK v3 metadata. Append the
+# apk-tools negative dependency after BuildPackage has processed menu deps.
+ifeq ($(DUMP),)
+ifneq ($(CONFIG_USE_APK),)
+Package/amneziawg3-go/DEPENDS := $(Package/amneziawg3-go/DEPENDS)$(comma) !amneziawg-go
+endif
+endif

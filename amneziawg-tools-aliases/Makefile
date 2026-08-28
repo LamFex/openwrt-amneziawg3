@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=amneziawg3-tools-aliases
 PKG_VERSION:=3.1.20260812
-PKG_RELEASE:=2
+PKG_RELEASE:=3
 
 PKG_MAINTAINER:=AWG OpenWrt3 contributors
 PKG_LICENSE:=MIT
@@ -37,3 +37,11 @@ define Package/amneziawg3-tools-aliases/install
 endef
 
 $(eval $(call BuildPackage,amneziawg3-tools-aliases))
+
+# OpenWrt 25.12 does not serialize CONFLICTS into APK v3 metadata. Append the
+# apk-tools negative dependency after BuildPackage has processed menu deps.
+ifeq ($(DUMP),)
+ifneq ($(CONFIG_USE_APK),)
+Package/amneziawg3-tools-aliases/DEPENDS := $(Package/amneziawg3-tools-aliases/DEPENDS)$(comma) !amneziawg-tools
+endif
+endif

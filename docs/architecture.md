@@ -126,9 +126,14 @@ peer AWG flag.
 - `/usr/bin/awg-quick3` → private patched `awg-quick`;
 - `/usr/bin/amneziawg-go`.
 
-Опциональный пакет `amneziawg3-tools-aliases` создаёт `awg` и `awg-quick`, но
-объявляет conflict с legacy `amneziawg-tools`. Default meta-package от него не
-зависит.
+Опциональный пакет `amneziawg3-tools-aliases` создаёт `awg` и `awg-quick`.
+И основной tools package, и aliases package содержат APK-native отрицательную
+зависимость `!amneziawg-tools`; runtime package содержит
+`!amneziawg-go`. Поэтому прямой `apk add` отклоняется solver до transaction,
+если установлен соответствующий AWG2 package. `CONFLICTS` остаётся в source
+для декларативной/IPK-совместимости. APK-specific append выполняется после
+`BuildPackage`, чтобы точный unversioned conflict не попадал в menu/Kconfig
+dependencies. Default meta-package от aliases не зависит.
 
 Профили явного compatibility command `awg-quick3` находятся в отдельном
 каталоге `/etc/amnezia/amneziawg3/`, поэтому одноимённый AWG2 profile не может
@@ -146,10 +151,15 @@ Netifd обнаруживает новые protocol handlers только при
 `/etc/init.d/network restart` либо reboot. Installer и package hooks этого не
 делают автоматически и не вызывают `ifup`.
 
+`pre-install` hook не является границей безопасности: apk может пометить
+ошибку package script, не используя её как solver constraint. Он сохранён как
+diagnostic defense-in-depth; совместимость AWG2/AWG3 обеспечивают отрицательные
+dependencies в реально собранной APK metadata.
+
 При upgrade уже зарегистрированный shell handler хранит путь к script и при
 следующем lifecycle action запускает файл по этому пути заново. Активный
-daemon автоматически не заменяется. Для текущего `-r2`, не меняющего
-`proto_config` schema, достаточно отдельного controlled
+daemon автоматически не заменяется. Для текущего `luci-proto-amneziawg3`
+`-r2`, не меняющего `proto_config` schema, достаточно отдельного controlled
 `ifdown <interface>`/`ifup <interface>`. Если будущий release меняет dump
 metadata или schema handler, release notes должны потребовать полный netifd
 restart/reboot; обычный reload такую metadata не перечитывает.

@@ -22,6 +22,7 @@ set -- \
 	scripts/router-preflight.sh \
 	scripts/prepare-ucode-runtime.sh \
 	scripts/secret-scan.sh \
+	scripts/test-apk-lifecycle.sh \
 	scripts/verify-apk-feed.sh \
 	scripts/verify-patches.sh \
 	scripts/verify-upstream.sh \

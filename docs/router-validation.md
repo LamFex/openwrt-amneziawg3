@@ -43,6 +43,11 @@
 5. убедиться, что не появился новый interface/process/route/firewall rule;
 6. убедиться, что WireGuard/AWG2 продолжают работать.
 
+Если установлен `amneziawg-go` или `amneziawg-tools`, APK solver должен
+отклонить установку до transaction из-за `!amneziawg-go` либо
+`!amneziawg-tools`. Это ожидаемый stop condition. Не использовать `--force`,
+`--force-overwrite` и не удалять AWG2 в рамках этого gate.
+
 На этом gate UCI network не редактируется. Installer обязан завершиться
 сообщением, что работающий netifd ещё не обнаружил новый protocol handler;
 `ifup amneziawg3` пока не выполняется.

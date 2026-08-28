@@ -50,10 +50,17 @@ LuCI, запуск через netifd и точечное обновление п
 
 Стандартные имена `awg` и `awg-quick` вынесены в отдельный пакет. Поэтому
 обычный `apk add amneziawg3` не перезаписывает команды существующего AWG2.
-Пакет aliases конфликтует с legacy-пакетом `amneziawg-tools` и устанавливается
-только осознанно. Runtime package называется `amneziawg3-go` и конфликтует с
-legacy package `amneziawg-go`: если AWG2 userspace уже владеет
-`/usr/bin/amneziawg-go`, установка остановится вместо его замены.
+Runtime package называется `amneziawg3-go` и конфликтует с legacy package
+`amneziawg-go`. Пакеты `amneziawg3-tools` и
+`amneziawg3-tools-aliases` намеренно конфликтуют с legacy
+`amneziawg-tools`. OpenWrt 25.12 APK metadata содержит отрицательные
+зависимости `!amneziawg-go` и `!amneziawg-tools`, поэтому solver обязан
+остановить транзакцию до удаления или замены AWG2. Исходные `CONFLICTS`
+сохранены для декларативной и IPK-совместимости.
+
+Package `pre-install` проверяет чужой init facade только как дополнительную
+диагностику. Он не считается security boundary: запрет совместной установки
+доказывается по metadata реально собранных APK и disposable solver-тестами.
 
 netifd является единственным владельцем foreground-процесса
 `amneziawg-go -f <interface>`. Init script не управляет PID самостоятельно:
@@ -127,6 +134,11 @@ echo 'https://<OWNER>.github.io/<REPOSITORY>/feed/aarch64_cortex-a53/packages.ad
 apk update
 apk add amneziawg3
 ```
+
+Прямая установка допустима только без `--force` и `--force-overwrite`.
+AWG3-пакеты намеренно конфликтуют с legacy AWG2 packages там, где совместная
+установка могла бы заменить runtime или столкнуться с tool paths. Если solver
+сообщил конфликт, остановитесь: не удаляйте и не заменяйте AWG2 автоматически.
 
 Перед ручной установкой самостоятельно сверяйте fingerprint ключа с
 `SHA256SUMS` GitHub Release.
@@ -281,8 +293,9 @@ AWG3 interface и не переписывают `/etc/config/network`. Посл�
 daemon остаётся прежним процессом. Уже зарегистрированный netifd handler при
 следующем lifecycle action запускает обновлённый script по тому же пути.
 
-Для текущего `-r2`, где `proto_config` schema не менялась, выполните отдельный
-controlled restart только тестируемого AWG3 interface:
+Для текущего `luci-proto-amneziawg3` `-r2`, где `proto_config` schema не
+менялась, выполните отдельный controlled restart только тестируемого AWG3
+interface:
 
 ```sh
 ifdown awg3

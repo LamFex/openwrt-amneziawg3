@@ -128,6 +128,13 @@ if grep -q 'amneziawg3-tools-aliases' amneziawg3/Makefile; then
 fi
 grep -q 'CONFLICTS:=amneziawg-tools' amneziawg-tools-aliases/Makefile
 grep -q 'CONFLICTS:=amneziawg-go' amneziawg-go/Makefile
+grep -Fq 'Package/amneziawg3-go/DEPENDS := $(Package/amneziawg3-go/DEPENDS)$(comma) !amneziawg-go' \
+	amneziawg-go/Makefile
+grep -Fq 'Package/amneziawg3-tools/DEPENDS := $(Package/amneziawg3-tools/DEPENDS)$(comma) !amneziawg-tools' \
+	amneziawg-tools/Makefile
+grep -Fq 'Package/amneziawg3-tools-aliases/DEPENDS := $(Package/amneziawg3-tools-aliases/DEPENDS)$(comma) !amneziawg-tools' \
+	amneziawg-tools-aliases/Makefile
+grep -q 'CONFLICTS:=amneziawg-tools' amneziawg-tools/Makefile
 grep -q 'DEPENDS:=+amneziawg3-go' amneziawg-tools/Makefile
 grep -Fq 'proto_run_command "$config" "$AWG3_GO" -f "$config"' \
 	amneziawg-tools/files/amneziawg3.sh

@@ -177,7 +177,9 @@ find "$OUTPUT_DIR" -mindepth 1 -maxdepth 1 \
 	\( -name '*.apk' -o -name 'packages.adb' -o -name 'SHA256SUMS' \
 	-o -name 'build-info.txt' -o -name 'awg-openwrt3.pem' \
 	-o -name 'feed-index.json' -o -name 'package-metadata.json' \
+	-o -name 'negative-dependencies.json' \
 	-o -name 'installed-files.txt' -o -name 'solver-plan.txt' \
+	-o -name 'apk-lifecycle-report.txt' \
 	-o -name 'verification-summary.txt' \) -delete
 cp "${FEED_DIR}"/*.apk "${FEED_DIR}/packages.adb" "$OUTPUT_DIR/"
 cp "${APK_REPORT_DIR}"/* "$OUTPUT_DIR/"
@@ -203,7 +205,8 @@ EOF
 (
 	cd "$OUTPUT_DIR"
 	set -- ./*.apk packages.adb build-info.txt feed-index.json \
-		package-metadata.json installed-files.txt solver-plan.txt \
+		package-metadata.json negative-dependencies.json \
+		installed-files.txt solver-plan.txt apk-lifecycle-report.txt \
 		verification-summary.txt
 	[ ! -f awg-openwrt3.pem ] || set -- "$@" awg-openwrt3.pem
 	sha256sum "$@" > SHA256SUMS

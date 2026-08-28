@@ -42,6 +42,26 @@ workflow fail-closed при его отсутствии.
 `private-key.pem` и `public-key.pem`; release job проверяет, что private key —
 EC P-256, а в artifacts копируется только public key.
 
+## Package collision boundary
+
+В OpenWrt 25.12 package `CONFLICTS` сохраняется для декларативной и
+IPK-совместимости, но реальный APK solver получает запреты через отрицательные
+runtime dependencies. `amneziawg3-go` содержит `!amneziawg-go`, а
+`amneziawg3-tools` и `amneziawg3-tools-aliases` содержат
+`!amneziawg-tools`. Package Makefiles добавляют их в сформированный
+`Package/<name>/DEPENDS` только для APK и после `BuildPackage`: так menu/Kconfig
+dependencies остаются обычными, а APK получает точный unversioned conflict.
+
+CI извлекает эти строки из metadata собранных APK, затем выполняет реальные
+disposable transactions в обоих направлениях. Проверяются nonzero solver
+result, неизменные world/package database/files и отсутствие partial install.
+Отдельный fixture проверяет upgrade затронутых packages с `-r2` на `-r3`,
+сохранение конфигурации и unrelated package.
+
+`pre-install` script остаётся диагностическим defense-in-depth, но не считается
+security boundary и не заменяет solver constraint. `--force`,
+`--force-overwrite` и автоматическое удаление AWG2 не поддерживаются.
+
 ## Process authority
 
 Только netifd создаёт foreground daemon через `proto_run_command` и завершает

@@ -28,5 +28,8 @@ Security fixes выпускаются только для последнего r
   доступным только root.
 - `awg-quick3` является явно запускаемым compatibility tool и может менять
   маршруты/firewall.
+- APK solver запрещает совместную установку конфликтующих AWG2/AWG3 runtime и
+  tools packages через `!amneziawg-go` и `!amneziawg-tools`; `pre-install`
+  hook является только дополнительной диагностикой.
 
 См. [security-model.md](docs/security-model.md).
