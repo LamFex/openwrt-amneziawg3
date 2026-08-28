@@ -151,9 +151,48 @@ grep -Fq 'Forward-AWG2-to-AWG3: verified' \
 	scripts/test-apk-lifecycle.sh
 grep -Fq 'Reverse-AWG3-to-AWG2: verified' \
 	scripts/test-apk-lifecycle.sh
+grep -Fq 'Reverse-Aliases-Collision: verified' \
+	scripts/test-apk-lifecycle.sh
 grep -Fq 'Upgrade-r2-to-r3: verified' scripts/test-apk-lifecycle.sh
+grep -Fq 'for component in world package-db manifest payload init-network' \
+	scripts/test-apk-lifecycle.sh
+grep -Fq 'authoritative-root' scripts/test-apk-lifecycle.sh
+grep -Fq 'path == "./var/cache"' scripts/test-apk-lifecycle.sh
+grep -Fq 'path == "./var/cache/apk"' scripts/test-apk-lifecycle.sh
+grep -Fq 'index(path, "./var/cache/apk/") == 1' \
+	scripts/test-apk-lifecycle.sh
+grep -Fq 'path == "./lib/apk/db/lock"' scripts/test-apk-lifecycle.sh
+grep -Fq 'path == "./var/log/apk.log"' scripts/test-apk-lifecycle.sh
+if rg -n 'path == "\./(var|tmp)/\*\*"|index\(path, "\./var/"\)' \
+		scripts/test-apk-lifecycle.sh >/dev/null; then
+	echo 'Lifecycle housekeeping allowlist is too broad.' >&2
+	exit 1
+fi
+grep -Fq 'assert_no_awg3_packages' scripts/test-apk-lifecycle.sh
+grep -Fq 'assert_no_legacy_packages' scripts/test-apk-lifecycle.sh
+grep -Fq 'assert_unique_manifest' scripts/test-apk-lifecycle.sh
+grep -Fq 'Authoritative-Lifecycle-State: verified' \
+	scripts/verify-apk-feed.sh
+grep -Fq 'Repeated-r3-Add-Upgrade: verified' \
+	scripts/verify-apk-feed.sh
 grep -Fq 'negative-dependencies.json' scripts/build-sdk.sh
+grep -Fq 'package-identity.json' scripts/build-sdk.sh
 grep -Fq 'apk-lifecycle-report.txt' scripts/build-sdk.sh
+grep -Fq 'Acceptance-Status: ${AWG3_ACCEPTANCE_STATUS}' \
+	scripts/build-sdk.sh
+grep -Fq 'Verification-Exit-Code: ${APK_VERIFICATION_STATUS}' \
+	scripts/build-sdk.sh
+grep -Fq 'unverified-ci-only' scripts/build-sdk.sh docs/release.md
+grep -Fq "if: \${{ always() && hashFiles('dist/*.apk') != '' }}" \
+	.github/workflows/build.yml
+grep -Fq 'awg3-ci-only-${{ github.sha }}-openwrt-25.12.5-mediatek-filogic-aarch64_cortex-a53' \
+	.github/workflows/build.yml
+grep -Fq '(.[0].info.provides // []) == [($name + "-any")]' \
+	scripts/verify-apk-feed.sh
+grep -Fq '(.[0].info.replaces // []) == []' \
+	scripts/verify-apk-feed.sh
+grep -Fq '`./var/cache/apk/**`, `./lib/apk/db/lock`' \
+	docs/security-model.md
 grep -Fq 'targets/mediatek/filogic/kmods/6.12.94-1-5a6c1f71be683ae9980b15d3ce73e24d/packages.adb' \
 	scripts/verify-apk-feed.sh
 if rg -n 'map\(\.name\)' scripts/verify-apk-feed.sh >/dev/null; then

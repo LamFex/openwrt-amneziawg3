@@ -58,6 +58,20 @@ result, неизменные world/package database/files и отсутстви�
 Отдельный fixture проверяет upgrade затронутых packages с `-r2` на `-r3`,
 сохранение конфигурации и unrelated package.
 
+Для rejected transaction authoritative snapshots отдельно фиксируют APK
+`world`, package DB без transient lock, exact package manifest с versions,
+AWG2/AWG3 payload, aliases/symlinks, config, init и network state. Дополнительный
+полный root guard допускает изменения только в `./var/cache`, точном
+`./var/cache/apk/**`, `./lib/apk/db/lock` и `./var/log/apk.log`. Это служебные
+side effects самого apk, не package lifecycle state. Любой другой changed path
+остаётся fail-closed ошибкой; широких исключений `/var/**` или `/tmp/**` нет.
+
+После успешной APK compilation unsigned workflow сохраняет APK, checksums,
+sanitized metadata и verification log даже при последующем падении acceptance
+test. Такой artifact имеет commit/SDK target в имени и явный статус
+`unverified-ci-only`; красный build остаётся красным, artifact не является
+release/feed и не содержит signing private key.
+
 `pre-install` script остаётся диагностическим defense-in-depth, но не считается
 security boundary и не заменяет solver constraint. `--force`,
 `--force-overwrite` и автоматическое удаление AWG2 не поддерживаются.

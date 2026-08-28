@@ -165,24 +165,59 @@ if [ "$AWG3_FEED_SIGNING_STATUS" = signed-release ]; then
 fi
 
 APK_REPORT_DIR="${BUILD_ROOT}/apk-reports"
+APK_VERIFICATION_LOG="${BUILD_ROOT}/apk-verification.log"
+SANITIZED_VERIFICATION_LOG="${BUILD_ROOT}/verification-run.log"
+set +e
 "${REPOSITORY_ROOT}/scripts/verify-apk-feed.sh" \
 	"${SDK_DIR}/staging_dir/host/bin/apk" \
 	"$FEED_DIR" \
 	"$APK_REPORT_DIR" \
 	"$AWG3_FEED_SIGNING_STATUS" \
-	"$(if [ "$AWG3_FEED_SIGNING_STATUS" = signed-release ]; then printf '%s' "${SDK_DIR}/${APK_PUBLIC_KEY}"; fi)"
+	"$(if [ "$AWG3_FEED_SIGNING_STATUS" = signed-release ]; then printf '%s' "${SDK_DIR}/${APK_PUBLIC_KEY}"; fi)" \
+	> "$APK_VERIFICATION_LOG" 2>&1
+APK_VERIFICATION_STATUS=$?
+set -e
+sed \
+	-e "s|${FEED_DIR}|<FEED>|g" \
+	-e "s|${SDK_DIR}|<SDK>|g" \
+	-e "s|${BUILD_ROOT}|<BUILD_ROOT>|g" \
+	-e 's|/tmp/awg3-apk-lifecycle\.[A-Za-z0-9]*|<LIFECYCLE_TMP>|g' \
+	"$APK_VERIFICATION_LOG" > "$SANITIZED_VERIFICATION_LOG"
+sed 's/^/[apk-verification] /' "$SANITIZED_VERIFICATION_LOG"
+
+if [ "$APK_VERIFICATION_STATUS" -eq 0 ]; then
+	if [ "$AWG3_FEED_SIGNING_STATUS" = signed-release ]; then
+		AWG3_ACCEPTANCE_STATUS=verified
+	else
+		AWG3_ACCEPTANCE_STATUS=verified-ci-only
+	fi
+else
+	AWG3_ACCEPTANCE_STATUS=unverified-ci-only
+fi
+if [ "$AWG3_FEED_SIGNING_STATUS" = signed-release ]; then
+	AWG3_ARTIFACT_CLASS=signed-release-build
+else
+	AWG3_ARTIFACT_CLASS=ci-only
+fi
 
 mkdir -p "$OUTPUT_DIR"
 find "$OUTPUT_DIR" -mindepth 1 -maxdepth 1 \
 	\( -name '*.apk' -o -name 'packages.adb' -o -name 'SHA256SUMS' \
 	-o -name 'build-info.txt' -o -name 'awg-openwrt3.pem' \
 	-o -name 'feed-index.json' -o -name 'package-metadata.json' \
+	-o -name 'package-identity.json' \
 	-o -name 'negative-dependencies.json' \
 	-o -name 'installed-files.txt' -o -name 'solver-plan.txt' \
 	-o -name 'apk-lifecycle-report.txt' \
-	-o -name 'verification-summary.txt' \) -delete
+	-o -name 'verification-summary.txt' \
+	-o -name 'verification-run.log' \
+	-o -name 'ci-artifact-status.txt' \) -delete
 cp "${FEED_DIR}"/*.apk "${FEED_DIR}/packages.adb" "$OUTPUT_DIR/"
-cp "${APK_REPORT_DIR}"/* "$OUTPUT_DIR/"
+set -- "${APK_REPORT_DIR}"/*
+if [ -f "$1" ]; then
+	cp "$@" "$OUTPUT_DIR/"
+fi
+cp "$SANITIZED_VERIFICATION_LOG" "$OUTPUT_DIR/verification-run.log"
 if [ "$AWG3_FEED_SIGNING_STATUS" = signed-release ]; then
 	cp "$APK_PUBLIC_KEY" "${OUTPUT_DIR}/awg-openwrt3.pem"
 fi
@@ -199,17 +234,35 @@ AmneziaWG-Go-Source-SHA256: ${AWG_GO_SHA256}
 AmneziaWG-Tools-Version: ${AWG_TOOLS_VERSION}
 AmneziaWG-Tools-Source-SHA256: ${AWG_TOOLS_SHA256}
 Feed-Signing: ${AWG3_FEED_SIGNING_STATUS}
+Artifact-Class: ${AWG3_ARTIFACT_CLASS}
+Acceptance-Status: ${AWG3_ACCEPTANCE_STATUS}
 Source-Revision: ${SOURCE_REVISION}
+EOF
+
+cat > "${OUTPUT_DIR}/ci-artifact-status.txt" <<EOF
+Artifact-Class: ${AWG3_ARTIFACT_CLASS}
+Acceptance-Status: ${AWG3_ACCEPTANCE_STATUS}
+Verification-Exit-Code: ${APK_VERIFICATION_STATUS}
+Publication-Performed-By-Build-Script: no
+Private-Signing-Material-Included: no
 EOF
 
 (
 	cd "$OUTPUT_DIR"
-	set -- ./*.apk packages.adb build-info.txt feed-index.json \
-		package-metadata.json negative-dependencies.json \
-		installed-files.txt solver-plan.txt apk-lifecycle-report.txt \
-		verification-summary.txt
+	set -- ./*.apk packages.adb build-info.txt ci-artifact-status.txt \
+		verification-run.log
+	for report in feed-index.json package-metadata.json package-identity.json \
+		negative-dependencies.json installed-files.txt solver-plan.txt \
+		apk-lifecycle-report.txt verification-summary.txt; do
+		[ ! -f "$report" ] || set -- "$@" "$report"
+	done
 	[ ! -f awg-openwrt3.pem ] || set -- "$@" awg-openwrt3.pem
 	sha256sum "$@" > SHA256SUMS
 )
 
-printf '%s\n' "Packages and ${AWG3_FEED_SIGNING_STATUS} feed written to ${OUTPUT_DIR}"
+printf '%s\n' \
+	"Packages and ${AWG3_FEED_SIGNING_STATUS} CI evidence written to ${OUTPUT_DIR} (${AWG3_ACCEPTANCE_STATUS})"
+if [ "$APK_VERIFICATION_STATUS" -ne 0 ]; then
+	echo 'APK acceptance verification failed; retained outputs are UNVERIFIED and not release-eligible.' >&2
+	exit "$APK_VERIFICATION_STATUS"
+fi

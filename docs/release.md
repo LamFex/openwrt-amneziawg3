@@ -32,9 +32,18 @@ make verify
 - unsigned test `packages.adb`;
 - `SHA256SUMS`;
 - `build-info.txt`;
+- `ci-artifact-status.txt` с `verified-ci-only` для зелёного unsigned build;
+- `package-identity.json` с name/version/arch/Depends/Provides/Replaces;
 - package metadata и отсутствие secrets;
 - `negative-dependencies.json` с APK-native AWG2 conflicts;
 - `apk-lifecycle-report.txt` с forward, reverse, partial и upgrade evidence.
+
+Artifact workflow называется
+`awg3-ci-only-<commit>-openwrt-25.12.5-mediatek-filogic-aarch64_cortex-a53`.
+Если APK compilation завершилась, но последующий verifier упал, workflow всё
+равно сохраняет checksummed evidence с `unverified-ci-only` и sanitized
+`verification-run.log`; сам workflow остаётся красным. Такой artifact нужен
+только для диагностики и не разрешает tag, feed, installer или release.
 
 Public key появляется только в trusted tag build, который требует dedicated
 Actions secret. Обычный CI этот secret не получает и private key не создаёт.

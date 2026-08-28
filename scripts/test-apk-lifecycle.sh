@@ -182,8 +182,11 @@ UPGRADE_REPOSITORIES="${LIFECYCLE_TMP}/upgrade-repositories.list"
 	printf 'ndx file://%s/packages.adb\n' "$LEGACY_REPOSITORY"
 	cat "$BASE_REPOSITORIES_FILE"
 } > "$LEGACY_REPOSITORIES"
-printf 'ndx file://%s/packages.adb\n' "$R2_REPOSITORY" \
-	> "$R2_REPOSITORIES"
+{
+	printf 'ndx file://%s/packages.adb\n' "$R2_REPOSITORY"
+	grep -Fvx "ndx file://${FEED_DIR}/packages.adb" \
+		"$BASE_REPOSITORIES_FILE"
+} > "$R2_REPOSITORIES"
 {
 	printf 'ndx file://%s/packages.adb\n' "$R2_REPOSITORY"
 	cat "$BASE_REPOSITORIES_FILE"
@@ -257,6 +260,197 @@ snapshot_root() {
 	) > "$output"
 }
 
+snapshot_selected_paths() {
+	local root="$1"
+	local output="$2"
+	local pathname
+	local entry
+	shift 2
+
+	for pathname do
+		entry="${root}/${pathname}"
+		if [ -L "$entry" ]; then
+			printf 'l\t%s\t%s\n' "$(readlink "$entry")" "$pathname"
+		elif [ -f "$entry" ]; then
+			printf 'f\t%s\t%s\t%s\n' \
+				"$(stat -c '%a' "$entry")" \
+				"$(sha256sum "$entry" | awk '{ print $1 }')" \
+				"$pathname"
+		elif [ -d "$entry" ]; then
+			printf 'd\t%s\t%s\n' "$(stat -c '%a' "$entry")" "$pathname"
+		elif [ -e "$entry" ]; then
+			printf 'o\t%s\t%s\n' "$(stat -c '%a' "$entry")" "$pathname"
+		else
+			printf 'm\t%s\n' "$pathname"
+		fi
+	done > "$output"
+}
+
+seed_network_state() {
+	local root="$1"
+
+	if [ ! -e "${root}/etc/config/network" ] &&
+			[ ! -L "${root}/etc/config/network" ]; then
+		make_payload_file "$root" etc/config/network \
+			"config interface 'awg2_fixture'" 0600
+	fi
+	if [ ! -e "${root}/etc/config/firewall" ] &&
+			[ ! -L "${root}/etc/config/firewall" ]; then
+		make_payload_file "$root" etc/config/firewall \
+			"config defaults 'fixture'" 0600
+	fi
+	if [ ! -e "${root}/etc/init.d/network" ] &&
+			[ ! -L "${root}/etc/init.d/network" ]; then
+		make_payload_file "$root" etc/init.d/network \
+			'synthetic network lifecycle sentinel' 0755
+	fi
+	if [ ! -e "${root}/etc/init.d/amneziawg2" ] &&
+			[ ! -L "${root}/etc/init.d/amneziawg2" ]; then
+		make_payload_file "$root" etc/init.d/amneziawg2 \
+			'synthetic AWG2 lifecycle sentinel' 0755
+	fi
+}
+
+snapshot_lifecycle_state() {
+	local root="$1"
+	local prefix="$2"
+	local full="${prefix}.root-full"
+
+	installed_manifest "$root" "${prefix}.manifest"
+	snapshot_root "$root" "$full"
+	snapshot_selected_paths "$root" "${prefix}.world" \
+		etc/apk/world
+	awk -F '\t' '
+		{
+			path = $NF
+			if (path == "./lib/apk/db/lock")
+				next
+			if (path == "./lib/apk/db" ||
+					index(path, "./lib/apk/db/") == 1)
+				print
+		}
+	' "$full" > "${prefix}.package-db"
+	snapshot_selected_paths "$root" "${prefix}.payload" \
+		usr/bin/amneziawg-go \
+		usr/bin/awg \
+		usr/bin/awg-quick \
+		usr/bin/awg3 \
+		usr/bin/awg-quick3 \
+		usr/bin/amneziawg3_watchdog \
+		usr/libexec/amneziawg3 \
+		usr/libexec/amneziawg3/amneziawg3.init \
+		usr/libexec/amneziawg3/amneziawg3-key-helper \
+		usr/libexec/amneziawg3/awg \
+		usr/libexec/amneziawg3/awg-quick \
+		lib/netifd/proto/amneziawg3.sh \
+		etc/amnezia/amneziawg3 \
+		etc/amnezia/amneziawg3/upgrade-test.conf \
+		usr/share/awg3-ci/unrelated-marker
+	snapshot_selected_paths "$root" "${prefix}.init-network" \
+		etc/config/network \
+		etc/config/firewall \
+		etc/init.d/network \
+		etc/init.d/amneziawg2 \
+		etc/init.d/amneziawg3 \
+		lib/netifd/proto/amneziawg3.sh
+
+	# APK commands may create only these non-lifecycle housekeeping paths:
+	#   ./var/cache and the exact ./var/cache/apk subtree
+	#   ./lib/apk/db/lock
+	#   ./var/log/apk.log
+	# Everything else remains part of the authoritative root snapshot.
+	awk -F '\t' '
+		function housekeeping(path) {
+			return path == "./var/cache" ||
+				path == "./var/cache/apk" ||
+				index(path, "./var/cache/apk/") == 1 ||
+				path == "./lib/apk/db/lock" ||
+				path == "./var/log/apk.log"
+		}
+		{ path = $NF; if (!housekeeping(path)) print }
+	' "$full" > "${prefix}.authoritative-root"
+	awk -F '\t' '
+		function housekeeping(path) {
+			return path == "./var/cache" ||
+				path == "./var/cache/apk" ||
+				index(path, "./var/cache/apk/") == 1 ||
+				path == "./lib/apk/db/lock" ||
+				path == "./var/log/apk.log"
+		}
+		{ path = $NF; if (housekeeping(path)) print }
+	' "$full" > "${prefix}.housekeeping"
+}
+
+append_sanitized_diff() {
+	local before="$1"
+	local after="$2"
+	local output="${LIFECYCLE_TMP}/state.diff"
+
+	diff -u "$before" "$after" > "$output" || true
+	sed -e "s|${LIFECYCLE_TMP}|<TMP>|g" \
+		-e "s|${FEED_DIR}|<FEED>|g" "$output"
+}
+
+assert_component_unchanged() {
+	local case_name="$1"
+	local component="$2"
+	local before="$3"
+	local after="$4"
+
+	if ! cmp -s "$before" "$after"; then
+		printf 'FAIL: %s changed authoritative component %s.\n' \
+			"$case_name" "$component" >> "$REPORT_FILE"
+		echo "$case_name changed authoritative component: $component" >&2
+		append_sanitized_diff "$before" "$after" | tee -a "$REPORT_FILE" >&2
+		exit 1
+	fi
+}
+
+assert_unique_manifest() {
+	local manifest="$1"
+	local duplicates
+
+	duplicates="$(awk '{ print $1 }' "$manifest" | LC_ALL=C sort | uniq -d)"
+	[ -z "$duplicates" ] || {
+		echo "Duplicate package records detected: $duplicates" >&2
+		printf 'FAIL: duplicate package records: %s\n' "$duplicates" \
+			>> "$REPORT_FILE"
+		exit 1
+	}
+}
+
+append_housekeeping_diff() {
+	local before="$1"
+	local after="$2"
+
+	printf 'Allowed apk housekeeping changes:\n' >> "$REPORT_FILE"
+	if cmp -s "$before" "$after"; then
+		printf '  <none>\n' >> "$REPORT_FILE"
+	else
+		append_sanitized_diff "$before" "$after" |
+			sed 's/^/  /' >> "$REPORT_FILE"
+	fi
+}
+
+assert_lifecycle_state_unchanged() {
+	local case_name="$1"
+	local before="$2"
+	local after="$3"
+	local component
+
+	for component in world package-db manifest payload init-network \
+		authoritative-root; do
+		assert_component_unchanged "$case_name" "$component" \
+			"${before}.${component}" "${after}.${component}"
+	done
+	assert_unique_manifest "${after}.manifest"
+	append_housekeeping_diff "${before}.housekeeping" \
+		"${after}.housekeeping"
+	printf '%s\n' \
+		'Authoritative state: world, package DB, manifest, payload, symlinks, config, init, and network unchanged.' \
+		>> "$REPORT_FILE"
+}
+
 append_state() {
 	local label="$1"
 	local root="$2"
@@ -279,6 +473,16 @@ append_state() {
 			usr/bin/awg-quick \
 			usr/bin/awg3 \
 			usr/bin/awg-quick3 \
+			usr/bin/amneziawg3_watchdog \
+			usr/libexec/amneziawg3/amneziawg3.init \
+			usr/libexec/amneziawg3/amneziawg3-key-helper \
+			usr/libexec/amneziawg3/awg \
+			usr/libexec/amneziawg3/awg-quick \
+			lib/netifd/proto/amneziawg3.sh \
+			etc/config/network \
+			etc/config/firewall \
+			etc/init.d/amneziawg2 \
+			etc/init.d/amneziawg3 \
 			etc/amnezia/amneziawg3/upgrade-test.conf \
 			usr/share/awg3-ci/unrelated-marker; do
 			if [ -L "${root}/${pathname}" ]; then
@@ -304,43 +508,139 @@ append_command_log() {
 
 assert_solver_conflict() {
 	local logfile="$1"
-	local expected_legacy="${2:-}"
-	local expected_awg3="${3:-}"
+	local expected_legacy
+	local expected_awg3
+	local pair_found=0
+	shift
 
 	grep -Eiq 'conflict|breaks|unable to select|unsatisfied' "$logfile" || {
 		echo "APK solver failure did not identify a dependency conflict." >&2
 		cat "$logfile" >&2
 		exit 1
 	}
-	if [ -n "$expected_legacy" ]; then
-		if ! grep -Fq "$expected_legacy" "$logfile" ||
-				! grep -Fq "$expected_awg3" "$logfile"; then
-			echo "APK solver output did not identify the expected conflict pair: ${expected_legacy} / ${expected_awg3}" >&2
-			cat "$logfile" >&2
+	[ "$#" -ne 0 ] || return 0
+	[ $(( $# % 2 )) -eq 0 ] || {
+		echo 'Internal error: expected conflict pairs are incomplete.' >&2
+		exit 2
+	}
+	while [ "$#" -ge 2 ]; do
+		expected_legacy="$1"
+		expected_awg3="$2"
+		shift 2
+		if grep -Fq "$expected_legacy" "$logfile" &&
+				grep -Fq "$expected_awg3" "$logfile"; then
+			pair_found=1
+			break
+		fi
+	done
+	[ "$pair_found" -eq 1 ] || {
+		echo 'APK solver output did not identify any expected conflict pair.' >&2
+		cat "$logfile" >&2
+		exit 1
+	}
+}
+
+assert_legacy_versions() {
+	local manifest="$1"
+	shift
+	local package
+
+	for package do
+		case "$package" in
+		amneziawg-go)
+			grep -Fxq 'amneziawg-go 2.0-r7' "$manifest"
+			;;
+		amneziawg-tools)
+			grep -Fxq 'amneziawg-tools 2.0-r7' "$manifest"
+			;;
+		*)
+			echo "Unknown legacy fixture package: $package" >&2
+			exit 2
+			;;
+		esac
+	done
+}
+
+assert_awg3_versions() {
+	local manifest="$1"
+	shift
+	local package
+
+	for package do
+		case "$package" in
+		amneziawg3-go)
+			grep -Fxq "amneziawg3-go ${GO_R3_VERSION}" "$manifest"
+			;;
+		amneziawg3-tools)
+			grep -Fxq "amneziawg3-tools ${TOOLS_R3_VERSION}" "$manifest"
+			;;
+		amneziawg3-tools-aliases)
+			grep -Fxq \
+				"amneziawg3-tools-aliases ${ALIASES_R3_VERSION}" "$manifest"
+			;;
+		*)
+			echo "Unknown AWG3 fixture package: $package" >&2
+			exit 2
+			;;
+		esac
+	done
+}
+
+assert_no_awg3_packages() {
+	local manifest="$1"
+
+	if grep -Eq '^amneziawg3([ -]|$)' "$manifest"; then
+		echo 'A rejected transaction left an AWG3 package record.' >&2
+		exit 1
+	fi
+}
+
+assert_no_legacy_packages() {
+	local manifest="$1"
+
+	if grep -Eq '^amneziawg-(go|tools) ' "$manifest"; then
+		echo 'A rejected reverse transaction left an AWG2 package record.' >&2
+		exit 1
+	fi
+}
+
+assert_no_awg3_namespaced_payload() {
+	local root="$1"
+	local pathname
+
+	for pathname in \
+		usr/bin/awg3 \
+		usr/bin/awg-quick3 \
+		usr/bin/amneziawg3_watchdog \
+		usr/libexec/amneziawg3 \
+		lib/netifd/proto/amneziawg3.sh \
+		etc/init.d/amneziawg3 \
+		etc/amnezia/amneziawg3; do
+		if [ -e "${root}/${pathname}" ] || [ -L "${root}/${pathname}" ]; then
+			echo "Rejected transaction introduced AWG3 payload: $pathname" >&2
 			exit 1
 		fi
-	fi
+	done
 }
 
 expect_forward_conflict() {
 	local case_name="$1"
 	local installed_packages="$2"
 	local requested_packages="$3"
-	local expected_legacy="${4:-}"
-	local expected_awg3="${5:-}"
 	local root="${LIFECYCLE_TMP}/forward-${case_name}/root"
 	local before="${LIFECYCLE_TMP}/forward-${case_name}.before"
 	local after="${LIFECYCLE_TMP}/forward-${case_name}.after"
 	local logfile="${LIFECYCLE_TMP}/forward-${case_name}.log"
 	local status
-	local package
+	shift 3
 
 	mkdir -p "$root"
 	# Fixture package names contain no whitespace; intentional word splitting.
 	# shellcheck disable=SC2086
 	apk_init_root "$root" "$LEGACY_REPOSITORIES" \
 		$installed_packages >/dev/null
-	snapshot_root "$root" "$before"
+	seed_network_state "$root"
+	snapshot_lifecycle_state "$root" "$before"
 	{
 		printf '\nFORWARD %s\n' "$case_name"
 		printf 'Command: apk add %s\n' "$requested_packages"
@@ -357,26 +657,30 @@ expect_forward_conflict() {
 		echo "Forward lifecycle case unexpectedly succeeded: $case_name" >&2
 		exit 1
 	}
-	assert_solver_conflict "$logfile" "$expected_legacy" "$expected_awg3"
-	snapshot_root "$root" "$after"
-	diff -u "$before" "$after" >/dev/null || {
-		echo "Forward lifecycle case changed the APK root: $case_name" >&2
-		diff -u "$before" "$after" >&2 || true
-		exit 1
-	}
-	installed_manifest "$root" "${after}.manifest"
-	for package in $installed_packages; do
-		grep -Eq "^${package} " "${after}.manifest"
-	done
-	if grep -Eq '^amneziawg3([ -]|$)' "${after}.manifest"; then
-		echo "Forward lifecycle case partially installed AWG3: $case_name" >&2
-		exit 1
-	fi
+	assert_solver_conflict "$logfile" "$@"
 	printf 'Exit: %s (expected non-zero)\nSolver output:\n' "$status" \
 		>> "$REPORT_FILE"
 	append_command_log "$logfile"
+	snapshot_lifecycle_state "$root" "$after"
+	assert_lifecycle_state_unchanged "FORWARD $case_name" "$before" "$after"
+	# Fixture package names contain no whitespace; intentional word splitting.
+	# shellcheck disable=SC2086
+	assert_legacy_versions "${after}.manifest" $installed_packages
+	assert_no_awg3_packages "${after}.manifest"
+	assert_no_awg3_namespaced_payload "$root"
+	case " $installed_packages " in
+	*' amneziawg-go '*) ;;
+	*) [ ! -e "${root}/usr/bin/amneziawg-go" ] ;;
+	esac
+	case " $installed_packages " in
+	*' amneziawg-tools '*) ;;
+	*)
+		[ ! -e "${root}/usr/bin/awg" ]
+		[ ! -e "${root}/usr/bin/awg-quick" ]
+		;;
+	esac
 	append_state After "$root"
-	printf 'Result: rejected atomically; pre/post root snapshots match.\n' \
+	printf 'Result: rejected atomically; all authoritative lifecycle snapshots match.\n' \
 		>> "$REPORT_FILE"
 }
 
@@ -388,37 +692,53 @@ expect_forward_conflict tools-only \
 	amneziawg-tools amneziawg3-tools
 expect_forward_conflict both \
 	'amneziawg-go amneziawg-tools' \
-	'amneziawg3-go amneziawg3-tools'
+	'amneziawg3-go amneziawg3-tools' \
+	amneziawg-go amneziawg3-go \
+	amneziawg-tools amneziawg3-tools
 expect_forward_conflict aliases \
 	'amneziawg-tools' 'amneziawg3-tools-aliases' \
 	amneziawg-tools amneziawg3-tools-aliases
 expect_forward_conflict meta-package \
-	'amneziawg-go amneziawg-tools' 'amneziawg3'
+	'amneziawg-go amneziawg-tools' 'amneziawg3' \
+	amneziawg-go amneziawg3-go \
+	amneziawg-tools amneziawg3-tools
 
 REVERSE_BASE="${LIFECYCLE_TMP}/reverse-base/root"
 mkdir -p "$REVERSE_BASE"
 apk_init_root "$REVERSE_BASE" "$LEGACY_REPOSITORIES" \
 	amneziawg3-go amneziawg3-tools >/dev/null
+seed_network_state "$REVERSE_BASE"
 installed_manifest "$REVERSE_BASE" "${LIFECYCLE_TMP}/reverse-base.manifest"
 grep -Fxq "amneziawg3-go ${GO_R3_VERSION}" \
 	"${LIFECYCLE_TMP}/reverse-base.manifest"
 grep -Fxq "amneziawg3-tools ${TOOLS_R3_VERSION}" \
 	"${LIFECYCLE_TMP}/reverse-base.manifest"
 
+REVERSE_ALIASES_BASE="${LIFECYCLE_TMP}/reverse-aliases-base/root"
+mkdir -p "$REVERSE_ALIASES_BASE"
+apk_init_root "$REVERSE_ALIASES_BASE" "$LEGACY_REPOSITORIES" \
+	amneziawg3-go amneziawg3-tools amneziawg3-tools-aliases >/dev/null
+seed_network_state "$REVERSE_ALIASES_BASE"
+installed_manifest "$REVERSE_ALIASES_BASE" \
+	"${LIFECYCLE_TMP}/reverse-aliases-base.manifest"
+assert_awg3_versions "${LIFECYCLE_TMP}/reverse-aliases-base.manifest" \
+	amneziawg3-go amneziawg3-tools amneziawg3-tools-aliases
+
 expect_reverse_conflict() {
 	local case_name="$1"
-	local requested_packages="$2"
-	local expected_legacy="${3:-}"
-	local expected_awg3="${4:-}"
+	local base_root="$2"
+	local expected_packages="$3"
+	local requested_packages="$4"
 	local root="${LIFECYCLE_TMP}/reverse-${case_name}/root"
 	local before="${LIFECYCLE_TMP}/reverse-${case_name}.before"
 	local after="${LIFECYCLE_TMP}/reverse-${case_name}.after"
 	local logfile="${LIFECYCLE_TMP}/reverse-${case_name}.log"
 	local status
+	shift 4
 
 	mkdir -p "$(dirname "$root")"
-	cp -a "$REVERSE_BASE" "$root"
-	snapshot_root "$root" "$before"
+	cp -a "$base_root" "$root"
+	snapshot_lifecycle_state "$root" "$before"
 	{
 		printf '\nREVERSE %s\n' "$case_name"
 		printf 'Command: apk add %s\n' "$requested_packages"
@@ -435,39 +755,45 @@ expect_reverse_conflict() {
 		echo "Reverse lifecycle case unexpectedly succeeded: $case_name" >&2
 		exit 1
 	}
-	assert_solver_conflict "$logfile" "$expected_legacy" "$expected_awg3"
-	snapshot_root "$root" "$after"
-	diff -u "$before" "$after" >/dev/null || {
-		echo "Reverse lifecycle case changed the APK root: $case_name" >&2
-		diff -u "$before" "$after" >&2 || true
-		exit 1
-	}
-	installed_manifest "$root" "${after}.manifest"
-	grep -Fxq "amneziawg3-go ${GO_R3_VERSION}" "${after}.manifest"
-	grep -Fxq "amneziawg3-tools ${TOOLS_R3_VERSION}" "${after}.manifest"
-	if grep -Eq '^amneziawg-(go|tools) ' "${after}.manifest"; then
-		echo "Reverse lifecycle case partially installed AWG2: $case_name" >&2
-		exit 1
-	fi
+	assert_solver_conflict "$logfile" "$@"
 	printf 'Exit: %s (expected non-zero)\nSolver output:\n' "$status" \
 		>> "$REPORT_FILE"
 	append_command_log "$logfile"
+	snapshot_lifecycle_state "$root" "$after"
+	assert_lifecycle_state_unchanged "REVERSE $case_name" "$before" "$after"
+	# Fixture package names contain no whitespace; intentional word splitting.
+	# shellcheck disable=SC2086
+	assert_awg3_versions "${after}.manifest" $expected_packages
+	assert_no_legacy_packages "${after}.manifest"
 	append_state After "$root"
-	printf 'Result: rejected atomically; pre/post root snapshots match.\n' \
+	printf 'Result: rejected atomically; all authoritative lifecycle snapshots match.\n' \
 		>> "$REPORT_FILE"
 }
 
-expect_reverse_conflict go-only 'amneziawg-go' \
+expect_reverse_conflict go-only "$REVERSE_BASE" \
+	'amneziawg3-go amneziawg3-tools' 'amneziawg-go' \
 	amneziawg-go amneziawg3-go
-expect_reverse_conflict tools-only 'amneziawg-tools' \
+expect_reverse_conflict tools-only "$REVERSE_BASE" \
+	'amneziawg3-go amneziawg3-tools' 'amneziawg-tools' \
 	amneziawg-tools amneziawg3-tools
-expect_reverse_conflict both 'amneziawg-go amneziawg-tools'
+expect_reverse_conflict aliases-collision "$REVERSE_ALIASES_BASE" \
+	'amneziawg3-go amneziawg3-tools amneziawg3-tools-aliases' \
+	'amneziawg-tools' \
+	amneziawg-tools amneziawg3-tools-aliases \
+	amneziawg-tools amneziawg3-tools
+expect_reverse_conflict both "$REVERSE_BASE" \
+	'amneziawg3-go amneziawg3-tools' \
+	'amneziawg-go amneziawg-tools' \
+	amneziawg-go amneziawg3-go \
+	amneziawg-tools amneziawg3-tools
 
 UPGRADE_ROOT="${LIFECYCLE_TMP}/upgrade/root"
 mkdir -p "$UPGRADE_ROOT"
 apk_init_root "$UPGRADE_ROOT" "$R2_REPOSITORIES" \
+	bash ip-full kmod-tun netifd nftables-json resolveip \
 	amneziawg3-go amneziawg3-tools \
 	amneziawg3-tools-aliases unrelated-fixture >/dev/null
+seed_network_state "$UPGRADE_ROOT"
 mkdir -p "${UPGRADE_ROOT}/etc/amnezia/amneziawg3"
 printf '%s\n' 'persistent fixture configuration' \
 	> "${UPGRADE_ROOT}/etc/amnezia/amneziawg3/upgrade-test.conf"
@@ -478,7 +804,17 @@ CONFIG_HASH_BEFORE="$(sha256sum \
 SENTINEL_HASH_BEFORE="$(sha256sum \
 	"${UPGRADE_ROOT}/usr/share/awg3-ci/unrelated-marker" |
 	awk '{ print $1 }')"
+R2_GO_HASH="$(sha256sum "${UPGRADE_ROOT}/usr/bin/amneziawg-go" |
+	awk '{ print $1 }')"
+R2_AWG_HASH="$(sha256sum "${UPGRADE_ROOT}/usr/bin/awg3" |
+	awk '{ print $1 }')"
+R2_QUICK_HASH="$(sha256sum "${UPGRADE_ROOT}/usr/bin/awg-quick3" |
+	awk '{ print $1 }')"
 cp "${UPGRADE_ROOT}/etc/apk/world" "${LIFECYCLE_TMP}/upgrade.world.before"
+snapshot_selected_paths "$UPGRADE_ROOT" \
+	"${LIFECYCLE_TMP}/upgrade.network.before" \
+	etc/config/network etc/config/firewall etc/init.d/network \
+	etc/init.d/amneziawg2 etc/init.d/amneziawg3
 {
 	printf '\nUPGRADE r2-to-r3\n'
 	printf 'Command: apk upgrade amneziawg3-go amneziawg3-tools amneziawg3-tools-aliases\n'
@@ -496,6 +832,8 @@ grep -Fxq "amneziawg3-tools-aliases ${ALIASES_R3_VERSION}" \
 	"${LIFECYCLE_TMP}/upgrade.manifest"
 grep -Fxq 'unrelated-fixture 1-r1' \
 	"${LIFECYCLE_TMP}/upgrade.manifest"
+assert_unique_manifest "${LIFECYCLE_TMP}/upgrade.manifest"
+assert_no_legacy_packages "${LIFECYCLE_TMP}/upgrade.manifest"
 cmp -s "${LIFECYCLE_TMP}/upgrade.world.before" \
 	"${UPGRADE_ROOT}/etc/apk/world"
 [ "$CONFIG_HASH_BEFORE" = "$(sha256sum \
@@ -506,35 +844,67 @@ cmp -s "${LIFECYCLE_TMP}/upgrade.world.before" \
 [ "$SENTINEL_HASH_BEFORE" = "$(sha256sum \
 	"${UPGRADE_ROOT}/usr/share/awg3-ci/unrelated-marker" |
 	awk '{ print $1 }')" ]
+[ "$R2_GO_HASH" != "$(sha256sum \
+	"${UPGRADE_ROOT}/usr/bin/amneziawg-go" | awk '{ print $1 }')" ]
+[ "$R2_AWG_HASH" != "$(sha256sum \
+	"${UPGRADE_ROOT}/usr/bin/awg3" | awk '{ print $1 }')" ]
+[ "$R2_QUICK_HASH" != "$(sha256sum \
+	"${UPGRADE_ROOT}/usr/bin/awg-quick3" | awk '{ print $1 }')" ]
+[ -x "${UPGRADE_ROOT}/usr/bin/amneziawg-go" ]
+[ -x "${UPGRADE_ROOT}/usr/bin/awg3" ]
+[ -x "${UPGRADE_ROOT}/usr/bin/awg-quick3" ]
+[ -x "${UPGRADE_ROOT}/usr/bin/amneziawg3_watchdog" ]
+[ -x "${UPGRADE_ROOT}/lib/netifd/proto/amneziawg3.sh" ]
+[ "$(readlink "${UPGRADE_ROOT}/usr/bin/awg")" = awg3 ]
+[ "$(readlink "${UPGRADE_ROOT}/usr/bin/awg-quick")" = awg-quick3 ]
+snapshot_selected_paths "$UPGRADE_ROOT" \
+	"${LIFECYCLE_TMP}/upgrade.network.after" \
+	etc/config/network etc/config/firewall etc/init.d/network \
+	etc/init.d/amneziawg2 etc/init.d/amneziawg3
+assert_component_unchanged 'UPGRADE r2-to-r3' init-network \
+	"${LIFECYCLE_TMP}/upgrade.network.before" \
+	"${LIFECYCLE_TMP}/upgrade.network.after"
 append_command_log "${LIFECYCLE_TMP}/upgrade.log"
 append_state After "$UPGRADE_ROOT"
-printf 'Result: r2 fixtures upgraded to real r3 APKs; config, world, and unrelated fixture preserved.\n' \
+printf 'Result: r2 fixtures upgraded to real r3 APKs; payload replaced; aliases correct; config, world, network state, and unrelated fixture preserved.\n' \
 	>> "$REPORT_FILE"
 
-snapshot_root "$UPGRADE_ROOT" "${LIFECYCLE_TMP}/repeat.before"
+snapshot_lifecycle_state "$UPGRADE_ROOT" "${LIFECYCLE_TMP}/repeat.before"
 apk_root_no_scripts "$UPGRADE_ROOT" "$UPGRADE_REPOSITORIES" \
 	add amneziawg3-go amneziawg3-tools amneziawg3-tools-aliases \
 	> "${LIFECYCLE_TMP}/repeat-add.log" 2>&1
-snapshot_root "$UPGRADE_ROOT" "${LIFECYCLE_TMP}/repeat.after-add"
-diff -u "${LIFECYCLE_TMP}/repeat.before" \
-	"${LIFECYCLE_TMP}/repeat.after-add" >/dev/null
+snapshot_lifecycle_state "$UPGRADE_ROOT" \
+	"${LIFECYCLE_TMP}/repeat.after-add"
+assert_lifecycle_state_unchanged 'REPEAT r3 apk add' \
+	"${LIFECYCLE_TMP}/repeat.before" \
+	"${LIFECYCLE_TMP}/repeat.after-add"
 apk_root_no_scripts "$UPGRADE_ROOT" "$UPGRADE_REPOSITORIES" \
 	upgrade amneziawg3-go amneziawg3-tools amneziawg3-tools-aliases \
 	> "${LIFECYCLE_TMP}/repeat-upgrade.log" 2>&1
-snapshot_root "$UPGRADE_ROOT" "${LIFECYCLE_TMP}/repeat.after-upgrade"
-diff -u "${LIFECYCLE_TMP}/repeat.after-add" \
-	"${LIFECYCLE_TMP}/repeat.after-upgrade" >/dev/null
+snapshot_lifecycle_state "$UPGRADE_ROOT" \
+	"${LIFECYCLE_TMP}/repeat.after-upgrade"
+assert_lifecycle_state_unchanged 'REPEAT r3 apk upgrade' \
+	"${LIFECYCLE_TMP}/repeat.after-add" \
+	"${LIFECYCLE_TMP}/repeat.after-upgrade"
+assert_awg3_versions "${LIFECYCLE_TMP}/repeat.after-upgrade.manifest" \
+	amneziawg3-go amneziawg3-tools amneziawg3-tools-aliases
+assert_no_legacy_packages \
+	"${LIFECYCLE_TMP}/repeat.after-upgrade.manifest"
+[ "$(readlink "${UPGRADE_ROOT}/usr/bin/awg")" = awg3 ]
+[ "$(readlink "${UPGRADE_ROOT}/usr/bin/awg-quick")" = awg-quick3 ]
 {
 	printf '\nREPEAT r3\n'
 	printf 'Commands: apk add, then apk upgrade, for installed r3 packages\n'
-	printf 'Result: both succeeded without changing package, world, or filesystem state.\n'
+	printf 'Result: both succeeded without changing authoritative package, world, payload, symlink, config, init, or network state.\n'
 	printf '\nSUMMARY\n'
 	printf 'Forward-AWG2-to-AWG3: verified\n'
 	printf 'Partial-Transactions: rejected atomically\n'
 	printf 'Reverse-AWG3-to-AWG2: verified\n'
+	printf 'Reverse-Aliases-Collision: verified\n'
 	printf 'Upgrade-r2-to-r3: verified\n'
 	printf 'Repeated-r3-add-upgrade: verified\n'
-	printf 'Package-Scripts: disabled only while preparing cross-architecture fixture roots; conflict attempts ran normally and stopped before transaction.\n'
+	printf 'Housekeeping-Allowlist: ./var/cache, ./var/cache/apk/**, ./lib/apk/db/lock, ./var/log/apk.log only.\n'
+	printf 'Package-Scripts: disabled while preparing/upgrading cross-architecture roots; conflict attempts ran normally and stopped before transaction.\n'
 } >> "$REPORT_FILE"
 
 echo "APK forward, reverse, partial, and upgrade lifecycle checks passed."

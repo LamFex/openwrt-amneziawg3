@@ -81,6 +81,9 @@ validate_metadata() {
 			.[0].info.version == $version and
 			.[0].info.arch == $arch and
 			.[0].info.license == $license and
+			(.[0].info.provides // []) == [($name + "-any")] and
+			(.[0].info.replaces // []) == [] and
+			(.[0].info.install_if // []) == [] and
 			(.[0].info.maintainer | type == "string" and length > 0)
 		' "${REPORT_DIR}/package-metadata.json" >/dev/null || {
 		echo "Unexpected metadata for $name." >&2
@@ -99,6 +102,17 @@ validate_metadata amneziawg3-tools 3.1.20260812-r3 aarch64_cortex-a53 \
 validate_metadata amneziawg3-tools-aliases 3.1.20260812-r3 noarch MIT
 validate_metadata luci-i18n-amneziawg3-ru 3.1.20260814-r2 noarch Apache-2.0
 validate_metadata luci-proto-amneziawg3 3.1.20260814-r2 noarch Apache-2.0
+
+jq '[.[] | {
+	name: .info.name,
+	version: .info.version,
+	arch: .info.arch,
+	depends: ((.info.depends // []) | sort),
+	provides: ((.info.provides // []) | sort),
+	replaces: ((.info.replaces // []) | sort),
+	install_if: ((.info.install_if // []) | sort)
+}] | sort_by(.name)' "${REPORT_DIR}/package-metadata.json" \
+	> "${REPORT_DIR}/package-identity.json"
 
 require_dependency() {
 	local package="$1"
@@ -265,13 +279,19 @@ Feed-Signing: ${SIGNING_STATUS}
 Index-Readable: yes
 Package-Integrity: verified
 Metadata-Allowlist: verified
+Package-Identity-Provides: verified
+No-Replaces-Or-Install-If: verified
 Installed-File-Allowlist: verified
 Dependency-Solver: verified
 Negative-Dependency-Metadata: verified
 Forward-AWG2-Conflict: verified
 Partial-Transaction-Rejection: verified
 Reverse-AWG2-Conflict: verified
+Reverse-Aliases-Collision: verified
 Upgrade-r2-to-r3: verified
+Repeated-r3-Add-Upgrade: verified
+Authoritative-Lifecycle-State: verified
+Housekeeping-Allowlist: verified
 EOF
 
 echo "APK metadata, files, index, and solver checks passed."
